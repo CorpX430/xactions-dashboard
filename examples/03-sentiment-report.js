@@ -2,15 +2,20 @@
 /**
  * 03 — Sentiment report for an account
  *
- * Pull a public timeline and score how the account talks. The analyzer is
- * rule-based and runs entirely offline, so this costs nothing and needs no
- * model, no key, and no network beyond the timeline fetch itself.
+ * What it does: pulls a public timeline and scores how the account talks.
+ * Prints the distribution, the most positive and most negative post, and the
+ * words that drove the scores.
  *
- * Set `mode: 'llm'` plus `OPENROUTER_API_KEY` to swap in a model instead —
- * same return shape, so nothing downstream changes.
+ * Needs: no session. The analyzer is rule-based and runs entirely offline, so
+ * this costs nothing and needs no model, no key, and no network beyond the
+ * timeline fetch itself.
  *
+ * Run:
  *   node examples/03-sentiment-report.js
  *   node examples/03-sentiment-report.js github 40
+ *
+ * Set `mode: 'llm'` plus `OPENROUTER_API_KEY` to swap in a model instead. Same
+ * return shape, so nothing downstream changes.
  *
  * @author nich (@nichxbt) - https://github.com/nirholas
  * @see https://xactions.app

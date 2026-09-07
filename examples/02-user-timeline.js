@@ -2,21 +2,25 @@
 /**
  * 02 — User timeline and engagement stats
  *
- * Stream a public timeline and summarise what actually performs. No account
- * needed.
+ * What it does: streams a public timeline and summarises what actually
+ * performs, ranking posts by likes plus reposts plus replies and reporting the
+ * median so one viral post cannot skew the picture.
+ *
+ * Needs: no session. Guest-tier read.
+ *
+ * Run:
+ *   node examples/02-user-timeline.js
+ *   node examples/02-user-timeline.js github 40
  *
  * `getTweets()` is an async generator that pages under the hood, so you can
  * stop early on a large account without fetching pages you will not read.
- *
- *   node examples/02-user-timeline.js
- *   node examples/02-user-timeline.js github 40
  *
  * @author nich (@nichxbt) - https://github.com/nirholas
  * @see https://xactions.app
  * @license Apache-2.0
  */
 
-import { openScraper, heading, compact } from './auth.js';
+import { openScraper, heading, compact, tweetUrl } from './auth.js';
 
 const handle = process.argv[2] || 'nasa';
 const limit = Number(process.argv[3] || 20);
@@ -56,7 +60,7 @@ for (const [i, tweet] of [...tweets].sort((a, b) => engagement(b) - engagement(a
   const text = (tweet.text || '').replace(/\s+/g, ' ').slice(0, 90);
   console.log(`\n  ${i + 1}. ${compact(engagement(tweet))} engagements`);
   console.log(`     ${text}${text.length === 90 ? '…' : ''}`);
-  console.log(`     https://x.com/${tweet.username}/status/${tweet.id}`);
+  console.log(`     ${tweetUrl(tweet)}`);
 }
 
 /**

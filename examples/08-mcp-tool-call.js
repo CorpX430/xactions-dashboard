@@ -2,14 +2,16 @@
 /**
  * 08 — Drive the MCP server the way an AI agent does
  *
- * Claude, Cursor, and Windsurf talk to XActions over MCP: they spawn the
- * server, exchange JSON-RPC over stdio, and call tools. This example does
- * exactly that, in about 60 lines, so you can see the wire format and verify
- * your setup without an AI client in the loop.
+ * What it does: spawns the XActions MCP server, completes the JSON-RPC
+ * handshake over stdio, lists the tools, and calls one. Exactly what Claude,
+ * Cursor, and Windsurf do, so you can see the wire format and verify a setup
+ * without an AI client in the loop. Reach for this when an MCP config "doesn't
+ * work" and you need to know whether the server or the client is at fault.
  *
- * Useful when an MCP config "doesn't work" and you need to know whether the
- * problem is the server or the client.
+ * Needs: no session for the default tool (`x_get_profile` is guest-tier). Naming
+ * a session-tier tool such as `x_search_tweets` needs X_AUTH_TOKEN set.
  *
+ * Run:
  *   node examples/08-mcp-tool-call.js
  *   node examples/08-mcp-tool-call.js x_get_profile github
  *

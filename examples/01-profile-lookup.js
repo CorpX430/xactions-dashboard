@@ -2,12 +2,14 @@
 /**
  * 01 — Profile lookup
  *
- * Fetch a public X profile. No account, no API key, no browser.
+ * What it does: fetches one or more public X profiles and prints the headline
+ * numbers. The shortest path from "npm install xactions" to real data.
  *
- * This is the shortest path from "npm install xactions" to real data, and it
- * runs against X's internal GraphQL API over plain HTTP, so it finishes in
- * well under a second rather than launching Chromium.
+ * Needs: no session. Guest-tier read, no API key and no browser. It goes
+ * straight to X's internal GraphQL API over plain HTTP, so it finishes in well
+ * under a second rather than launching Chromium.
  *
+ * Run:
  *   node examples/01-profile-lookup.js
  *   node examples/01-profile-lookup.js nasa github vercel
  *

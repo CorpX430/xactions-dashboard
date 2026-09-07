@@ -95,10 +95,16 @@ function loginInstructions() {
     'This example needs a logged-in X session.',
     '',
     'X only serves search, follower lists, likes, bookmarks, and DMs to',
-    'authenticated requests. Profiles and public timelines work without one —',
+    'authenticated requests. Profiles and public timelines work without one:',
     'see 01-profile-lookup.js and 02-user-timeline.js.',
     '',
-    'To authenticate:',
+    'Easiest first. Either of these writes the cookie file for you:',
+    '',
+    '       npx xactions connect                 log in through a real browser',
+    '       npx xactions login --from-browser    read cookies from a browser you',
+    '                                            are already logged in to',
+    '',
+    'By hand, if you prefer:',
     '  1. Open x.com and log in.',
     '  2. DevTools (F12) > Application > Cookies > https://x.com',
     '  3. Copy the values of "auth_token" and "ct0".',
@@ -124,6 +130,23 @@ function loginInstructions() {
  */
 export function heading(title) {
   console.log(`\n${title}\n${'-'.repeat(title.length)}`);
+}
+
+/**
+ * Canonical x.com link for a post.
+ *
+ * `tweet.permanentUrl` needs the author's handle, and X does not always send
+ * one on a timeline entry, so it can come back empty. The `/i/web/status/<id>`
+ * form needs only the id and redirects to the real permalink, which makes it
+ * the safe thing to print.
+ *
+ * @param {{id: string, username?: string}} tweet
+ * @returns {string}
+ */
+export function tweetUrl(tweet) {
+  return tweet.username
+    ? `https://x.com/${tweet.username}/status/${tweet.id}`
+    : `https://x.com/i/web/status/${tweet.id}`;
 }
 
 /**

@@ -2,19 +2,19 @@
 /**
  * 07 — Watch a keyword and alert on it
  *
- * Poll X search on an interval, score each new post for sentiment, and fire a
- * webhook when something negative shows up. This is the shape of a brand
- * monitor, a support-mention watcher, or an incident tripwire.
+ * What it does: polls X search on an interval, scores each new post for
+ * sentiment, and fires a webhook when something negative shows up. The shape of
+ * a brand monitor, a support-mention watcher, or an incident tripwire. Seen IDs
+ * are tracked so a post is reported once, and the first poll is treated as a
+ * baseline rather than alerting on the entire backlog.
  *
- * Requires a logged-in session: X search is not available to guests.
+ * Needs: A LOGGED-IN SESSION. X search is not available to guests. Run
+ * `npx xactions connect` first, or export X_AUTH_TOKEN and X_CSRF_TOKEN.
+ * ALERT_WEBHOOK is optional; without it negatives are printed, not posted.
  *
- * Seen IDs are tracked so a post is only ever reported once, and the first
- * poll is treated as a baseline rather than alerting on the entire backlog.
- *
+ * Run (Ctrl+C to stop):
  *   node examples/07-keyword-monitor.js "your brand"
  *   ALERT_WEBHOOK=https://hooks.example.com/x node examples/07-keyword-monitor.js "your brand" 120
- *
- * Stop with Ctrl+C.
  *
  * @author nich (@nichxbt) - https://github.com/nirholas
  * @see https://xactions.app
@@ -23,7 +23,7 @@
 
 import { analyzeSentiment } from '../src/analytics/index.js';
 import { SearchMode } from '../src/client/index.js';
-import { openAuthenticatedScraper, heading } from './auth.js';
+import { openAuthenticatedScraper, heading, tweetUrl } from './auth.js';
 
 const query = process.argv[2] || 'xactions';
 const intervalSeconds = Number(process.argv[3] || 60);
@@ -98,7 +98,7 @@ function report(tweet, sentiment) {
   console.log(
     `  [${stamp()}] ${marker} @${tweet.username}: ${(tweet.text || '').replace(/\s+/g, ' ').slice(0, 100)}`,
   );
-  console.log(`             https://x.com/${tweet.username}/status/${tweet.id}`);
+  console.log(`             ${tweetUrl(tweet)}`);
 }
 
 /**
@@ -113,7 +113,7 @@ async function notify(tweet, sentiment) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query,
-        url: `https://x.com/${tweet.username}/status/${tweet.id}`,
+        url: tweetUrl(tweet),
         author: tweet.username,
         text: tweet.text,
         sentiment,

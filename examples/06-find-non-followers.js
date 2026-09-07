@@ -2,17 +2,23 @@
 /**
  * 06 — Who doesn't follow you back
  *
- * The set difference that XActions is best known for, done with the HTTP
- * client instead of a browser. Requires a logged-in session.
+ * What it does: the set difference XActions is best known for, done with the
+ * HTTP client instead of a browser. Prints the biggest accounts first and
+ * writes the full list to JSON.
  *
- * Read-only on purpose. It prints the list and writes it to JSON; unfollowing
- * is a separate, deliberate step (`xactions unfollow`, or the browser script
- * in `scripts/unfollowback.js`). Bulk-unfollowing on the same breath as
- * discovering the list is how people trip X's rate limits and lock themselves
- * out for a day.
+ * Needs: A LOGGED-IN SESSION. Both follower and following lists are
+ * session-tier. Run `npx xactions connect` first, or export X_AUTH_TOKEN and
+ * X_CSRF_TOKEN. Without one this exits with setup instructions.
  *
+ * Run:
  *   node examples/06-find-non-followers.js
  *   node examples/06-find-non-followers.js nasa
+ *
+ * Read-only on purpose. Unfollowing is a separate, deliberate step
+ * (`xactions bulk unfollow <file>`, or the browser script in
+ * `scripts/unfollowback.js`). Bulk-unfollowing in the same breath as
+ * discovering the list is how people trip X's rate limits and lock themselves
+ * out for a day.
  *
  * @author nich (@nichxbt) - https://github.com/nirholas
  * @see https://xactions.app

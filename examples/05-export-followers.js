@@ -2,13 +2,15 @@
 /**
  * 05 — Export followers to CSV
  *
- * Page through a follower list and write a spreadsheet-ready CSV. Requires a
- * logged-in session: X does not serve follower lists to guests.
+ * What it does: pages through a follower list and writes a spreadsheet-ready
+ * CSV. Rows are streamed to disk as they arrive rather than accumulated in
+ * memory, so an interrupted run keeps whatever it had already written.
  *
- * Results are streamed to disk as they arrive rather than accumulated in
- * memory, so a run against a large account survives being interrupted with
- * whatever it had already written.
+ * Needs: A LOGGED-IN SESSION. X does not serve follower lists to guests. Run
+ * `npx xactions connect` first, or export X_AUTH_TOKEN and X_CSRF_TOKEN.
+ * Without one this exits with setup instructions and does nothing.
  *
+ * Run:
  *   node examples/05-export-followers.js
  *   node examples/05-export-followers.js nasa 500 nasa-followers.csv
  *

@@ -29,7 +29,17 @@ Session-tier endpoints answer a logged-out request with a bare `404`, which is
 why the examples that need one check up front and tell you how to fix it rather
 than failing halfway through.
 
-To authenticate:
+The painless way, either of which writes the cookie file the examples read:
+
+```bash
+npx xactions connect              # opens a real browser, you log in, it captures the session
+npx xactions login --from-browser # reads x.com cookies from a browser you are already logged in to
+```
+
+`--from-browser` takes `chrome`, `chromium`, `brave`, `edge`, `arc`, or
+`firefox`, and defaults to firefox.
+
+By hand, if you would rather see exactly what is being copied:
 
 1. Open [x.com](https://x.com) and log in.
 2. DevTools (<kbd>F12</kbd>) → **Application** → **Cookies** → `https://x.com`
@@ -41,11 +51,9 @@ To authenticate:
    export X_CSRF_TOKEN=...
    ```
 
-   or save them once with the CLI:
+   or paste them into `npx xactions login`.
 
-   ```bash
-   npx xactions login
-   ```
+Check where you stand at any time with `npx xactions doctor`.
 
 Both cookies matter. `auth_token` proves who you are; `ct0` is the CSRF token X
 requires as a header before it treats the request as logged in. With only
@@ -65,6 +73,7 @@ requires as a header before it treats the request as logged in. With only
 | 06 | [06-find-non-followers.js](06-find-non-followers.js) | Set difference of following vs followers. Read-only. | yes |
 | 07 | [07-keyword-monitor.js](07-keyword-monitor.js) | Poll search, score sentiment, POST a webhook on negatives. | yes |
 | 08 | [08-mcp-tool-call.js](08-mcp-tool-call.js) | Drive the MCP server over stdio the way Claude does. | no |
+| 09 | [09-draft-approval.js](09-draft-approval.js) | Hold an agent's write call as a draft, review it, discard it. | no |
 
 [auth.js](auth.js) is the shared helper the others import. It resolves a
 session from the environment or the CLI's cookie file and prints setup
@@ -100,6 +109,10 @@ ALERT_WEBHOOK=https://hooks.example.com/x node examples/07-keyword-monitor.js "y
 # 08 — verify an MCP setup without an AI client in the loop
 node examples/08-mcp-tool-call.js
 node examples/08-mcp-tool-call.js x_get_tweets github
+
+# 09 — see the approval gate hold a write call. Nothing is ever posted.
+node examples/09-draft-approval.js
+node examples/09-draft-approval.js "text for the held draft"
 ```
 
 ### Sample output
@@ -110,9 +123,22 @@ node examples/08-mcp-tool-call.js x_get_tweets github
 Profiles
 --------
 Network   Handle                    Followers   Following   Posts
-X         @NASA                     92.2M       119         74.3K
-Bluesky   @bsky.app                 34.3M       11          802
-Mastodon  @Gargron                  381.7K      731         82.0K
+X         @NASA                     92.4M       117         74.2K
+Bluesky   @bsky.app                 34.7M       13          822
+Mastodon  @Gargron                  382.4K      735         82.1K
+```
+
+`node examples/09-draft-approval.js`:
+
+```
+An agent asks to post
+---------------------
+  held      true
+  draft id  88aae55b
+  tool      x_post_tweet
+  text      A post an agent proposed. Never sent.
+
+  Approval mode is on. "x_post_tweet" was saved as draft 88aae55b and has NOT been executed.
 ```
 
 ---
@@ -135,7 +161,7 @@ const profile = await scraper.getProfile('nasa');
 console.log(profile.name, profile.followersCount);
 
 for await (const tweet of scraper.getTweets('nasa', 20)) {
-  console.log(tweet.id, tweet.text);
+  console.log(`https://x.com/i/web/status/${tweet.id}`, tweet.text);
 }
 
 // Session tier — attach cookies first
@@ -167,7 +193,7 @@ try {
 
 ## Browser console scripts
 
-The examples above are Node.js programs. XActions also ships 100+ scripts you
+The examples above are Node.js programs. XActions also ships 95 scripts you
 paste straight into DevTools on x.com with nothing installed at all. The
 best-known one unfollows everybody who does not follow you back:
 
@@ -185,9 +211,10 @@ want a downloadable log of who was unfollowed. The full catalog is in
 
 These examples cover the Node.js library. XActions has four more entry points:
 
-- **CLI** — `npx xactions profile nasa`. See [docs/cli-reference.md](../docs/cli-reference.md).
+- **CLI** — 55 top-level commands, 157 counting sub-commands. `npx xactions profile nasa`. See [docs/cli-reference.md](../docs/cli-reference.md).
 - **MCP server** — 153 tools for Claude, Cursor, and Windsurf. See [docs/mcp-setup.md](../docs/mcp-setup.md).
-- **Browser scripts** — paste into DevTools, no install. See [docs/browser-scripts.md](../docs/browser-scripts.md).
+- **Agent skills** — 49 of them, installable with `npx xactions skills install --all`. See [docs/skills.md](../docs/skills.md).
+- **Browser scripts** — 95 of them, pasted into DevTools with no install. See [docs/browser-scripts.md](../docs/browser-scripts.md).
 - **REST API** — self-hosted. See [docs/rest-api.md](../docs/rest-api.md).
 
 Guided, end-to-end walkthroughs live in [tutorials/](../tutorials/).

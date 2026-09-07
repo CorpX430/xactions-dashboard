@@ -2,15 +2,19 @@
 /**
  * 04 — One account, three networks
  *
- * Look up the same brand on X, Bluesky, and Mastodon and print the results
- * side by side. All three reads are public: no account on any network.
+ * What it does: looks up the same brand on X, Bluesky, and Mastodon and prints
+ * the results side by side. One network being down does not cost you the other
+ * two results.
+ *
+ * Needs: no session on any of the three networks. All three reads are public.
+ *
+ * Run:
+ *   node examples/04-cross-platform.js
+ *   node examples/04-cross-platform.js nasa nasa.bsky.social Gargron@mastodon.social
  *
  * Each platform module normalises to the same field names (`name`, `username`,
  * `bio`, `followers`, `following`, `posts`), so a dashboard or migration tool
  * can treat them interchangeably.
- *
- *   node examples/04-cross-platform.js
- *   node examples/04-cross-platform.js nasa nasa.bsky.social Gargron@mastodon.social
  *
  * @author nich (@nichxbt) - https://github.com/nirholas
  * @see https://xactions.app
