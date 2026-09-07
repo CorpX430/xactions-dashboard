@@ -21,6 +21,7 @@ session.json
 query-ids.json
 mcp-drafts.json
 .x402-wallets.json
+.x402-buyer.json
 vertex-ai-key.json
 *.pem
 

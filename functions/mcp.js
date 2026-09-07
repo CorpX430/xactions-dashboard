@@ -41,16 +41,14 @@ const httpPrice = (path) => PAID_RESOURCES.find((resource) => resource.path === 
 /**
  * What each tool costs. A tool absent from this table is free.
  *
- * The two tools that are free over HTTP stay free here: the video extractor and
- * the documentation search. Everything that mirrors a paid endpoint is priced
- * the same as that endpoint, so an agent cannot arbitrage one rail against the
- * other.
+ * The price is attached to the data, not to the rail: a profile and a timeline
+ * cost the same here as they do over HTTP, and a single post, a thread, a video
+ * and a documentation lookup are free on both. Pricing the same data differently
+ * on two interfaces would just teach an agent to use the cheaper one.
  */
 const TOOL_PRICES = {
   x_profile: httpPrice('/api/ai/scrape/profile') ?? '$0.001',
   x_posts: httpPrice('/api/ai/scrape/tweets') ?? '$0.005',
-  x_post: '$0.001',
-  x_thread: '$0.005',
 };
 
 const TOOL_DESCRIPTIONS = Object.fromEntries(EDGE_TOOLS.map((tool) => [tool.name, tool.description]));
