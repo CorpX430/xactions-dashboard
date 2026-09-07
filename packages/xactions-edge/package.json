@@ -2,7 +2,7 @@
   "name": "xactions-edge",
   "version": "1.0.0",
   "description": "Public X/Twitter reads from any JavaScript runtime. No API key, no account, no install. Talks to the hosted XActions MCP server.",
-  "homepage": "https://xactions.app/docs/mcp-remote",
+  "homepage": "https://xactions.app/docs/guides/mcp-remote",
   "repository": {
     "type": "git",
     "url": "https://github.com/nirholas/xactions.git",

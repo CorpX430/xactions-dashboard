@@ -39,9 +39,42 @@ echo 'source <(xactions completion zsh)' >> ~/.zshrc && exec zsh
 xactions completion fish > ~/.config/fish/completions/xactions.fish
 ```
 
-Now `xactions <tab>` lists all fifty-plus commands, `xactions plugin <tab>` lists its sub-commands, and `xactions tweets --<tab>` lists that command's flags. The script is generated from the live command tree, so regenerate it after upgrading and it picks up whatever is new.
+Now `xactions <tab>` lists all 56 top-level commands, `xactions plugin <tab>` lists its sub-commands, and `xactions tweets --<tab>` lists that command's flags. The script is generated from the live command tree, so regenerate it after upgrading and it picks up whatever is new.
 
-## 2. Reading a timeline
+## 2. When the reader is an agent, not jq
+
+`--json` is the right shape for a parser. It is the wrong shape for an LLM,
+which pays per token for every brace and quote. `--compact` prints one record
+per line, tab-separated `key=value`, no colours and no spinner:
+
+```bash
+xactions profile NASA --compact
+```
+```
+id=11348282	username=NASA	name=NASA	followers=92356563	following=117	tweets=74197	verified=false	bio=Making the seemingly impossible, possible. ✨
+```
+
+`--fields` narrows it to the columns you asked for:
+
+```bash
+xactions tweets NASA --limit 3 --compact --fields id,likes,text
+```
+```
+id=2093063226351136958	likes=1639	text=Join us tomorrow at 11am ET (1500 UTC) as the Artemis II crew receives the Congressional Space Medal of Honor! ...
+id=2092962731666051534	likes=0	text=RT @LearnWithNASA: Space telescopes help us understand the origins of the universe. ...
+id=2092744659667673582	likes=6753	text=A partial lunar eclipse will pass over the Americas ...
+```
+
+Both are **global** flags: put them before or after the sub-command and they
+work on anything that emits records. One record per line also means `cut`,
+`awk`, `grep`, and `sort` work with no JSON parser in the pipeline:
+
+```bash
+xactions tweets NASA --limit 100 --compact --fields id,likes \
+  | sort -t= -k3 -rn | head -5
+```
+
+## 3. Reading a timeline
 
 ```bash
 xactions tweets NASA --limit 100 --json > tweets.json
@@ -69,9 +102,15 @@ jq '.[0] | keys' tweets.json
  "timestamp","urls","userId","username","videos","views"]
 ```
 
-Three worth knowing up front: the link to a post is `permanentUrl` (not `url`), media is split into `photos` and `videos` (there is no combined `media` array), and `timestamp` is **milliseconds** while `timeParsed` is an ISO string.
+Three worth knowing up front. Media is split into `photos` and `videos`, with no combined `media` array. `timestamp` is **milliseconds** while `timeParsed` is an ISO string. And build post links from the id rather than reading `permanentUrl`:
 
-## 3. Filtering
+```bash
+jq -r '.[] | "https://x.com/i/web/status/\(.id)"' tweets.json
+```
+
+`permanentUrl` is composed from the author's handle, and X does not always send a handle on a timeline entry, so it can come back as an empty string. The `/i/web/status/<id>` form needs only the id and redirects to the real permalink, so it always resolves.
+
+## 4. Filtering
 
 `jq` does the filtering, which means you are not limited to flags anyone thought to add.
 
@@ -83,7 +122,7 @@ jq '[.[] | select(((.photos | length) + (.videos | length)) > 0)] | length' twee
 jq '[.[] | select(.isRetweet == false and .isReply == false)] | length' tweets.json
 
 # Posts above 5000 likes, with their links
-jq -r '.[] | select(.likes > 5000) | .permanentUrl' tweets.json
+jq -r '.[] | select(.likes > 5000) | "https://x.com/i/web/status/\(.id)"' tweets.json
 
 # Posts mentioning a word, case insensitive
 jq -r '.[] | select(.text | ascii_downcase | contains("launch")) | .text' tweets.json
@@ -97,13 +136,13 @@ jq -r 'map(select(.views > 0))
        | "\((((.likes + .retweets + .replies) / .views) * 100) | .*100 | round / 100)%\t\(.text[0:60])"' tweets.json
 ```
 
-## 4. Combining commands
+## 5. Combining commands
 
 Pipelines get interesting when one command feeds another. Find who an account talks about, then look each of them up:
 
 ```bash
 xactions analyze NASA --limit 200 --json \
-  | jq -r '.topMentions[:5][] | .handle // .username // .' \
+  | jq -r '.topMentions[:5][] | .value' \
   | while read -r handle; do
       xactions profile "$handle" --json 2>/dev/null \
         | jq -r '"\(.username)\t\(.followersCount // 0)\t\(.bio // "" | .[0:60])"'
@@ -111,9 +150,27 @@ xactions analyze NASA --limit 200 --json \
   | column -t -s $'\t'
 ```
 
-Run `xactions analyze NASA --json | jq '.topMentions[0]'` first to see the exact shape; the `//` fallbacks above exist so the script survives either shape rather than dying on a missing key.
+```
+Space_Station  8898049  NASA's page for the latest mission and science updates from
+NASARoman      48312    The Roman Telescope is a NASA mission that will study dark e
+Astro_ChrisW   12576    @NASA Astronaut, Group 23  |  Expedition 74 Flight Engineer
+astro_anil     16501    NASA Astronaut aboard the ISS | Soyuz launch from Kaza
+NASAHubble     8903796  The official X account for the NASA Hubble Space Telescope,
+```
 
-## 5. CSV and spreadsheets without jq
+`topMentions` and `topHashtags` are arrays of `{value, count}`, not bare strings. Check a shape before you build on it:
+
+```bash
+xactions analyze NASA --json | jq '.topMentions[0]'
+```
+```json
+{
+  "value": "NASARoman",
+  "count": 4
+}
+```
+
+## 6. CSV and spreadsheets without jq
 
 For the common cases the CLI writes the file for you. The format follows the extension:
 
@@ -134,9 +191,9 @@ xactions tweets NASA --limit 500 \
 
 `--sheet-mode` takes `append`, `replace`, or `new-sheet`.
 
-## 6. Exit codes
+## 7. Exit codes
 
-Every command exits non-zero on failure, so `set -e` and `&&` behave:
+The read commands exit non-zero on failure, so `set -e` and `&&` behave:
 
 ```bash
 if xactions profile somehandle --json > /dev/null 2>&1; then
@@ -159,7 +216,7 @@ tier=$(xactions quickstart --json | jq -r .tier)
 [ "$tier" = "session" ] || echo "guest tier: search and followers will not work"
 ```
 
-## 7. A daily digest
+## 8. A daily digest
 
 Putting it together. This runs on the guest tier, needs no account, and mails you nothing you did not ask for:
 
@@ -183,7 +240,9 @@ xactions doctor > /dev/null || { echo "xactions unhealthy"; exit 1; }
     echo
 
     # `timestamp` is milliseconds, so the cutoff is compared in milliseconds too.
-    xactions tweets "$handle" --limit 50 --json 2>/dev/null \
+    # jq exits 0 on an empty result, so test the output rather than the status:
+    # "no posts today" is a normal day, not a failure.
+    posts=$(xactions tweets "$handle" --limit 50 --json 2>/dev/null \
       | jq -r --argjson since "$((SINCE * 1000))" '
           [ .[]
             | select(.timestamp != null and .timestamp > $since)
@@ -191,8 +250,10 @@ xactions doctor > /dev/null || { echo "xactions unhealthy"; exit 1; }
           ]
           | sort_by(-(.likes // 0))
           | .[:3][]
-          | "- **\(.likes // 0) likes** \(.text | gsub("\n"; " ") | .[0:160])\n  \(.permanentUrl // "")"
-        ' || echo "_no posts in the last 24h_"
+          | "- **\(.likes // 0) likes** \(.text | gsub("\n"; " ") | .[0:160])\n  https://x.com/i/web/status/\(.id)"
+        ')
+
+    if [ -n "$posts" ]; then echo "$posts"; else echo "_no posts in the last 24h_"; fi
 
     echo
   done
@@ -205,13 +266,30 @@ echo "wrote $OUT"
 chmod +x digest.sh && ./digest.sh
 ```
 
+```
+wrote digest-2026-08-28.md
+```
+
+```markdown
+# Digest for 2026-08-28
+
+## @NASA
+
+- **1691 likes** Join us tomorrow at 11am ET (1500 UTC) as the Artemis II crew receives the Congressional Space Medal of Honor! We'll be streaming the ceremony here, on our YouT
+  https://x.com/i/web/status/2093063226351136958
+
+## @SpaceX
+
+_no posts in the last 24h_
+```
+
 Then put it in cron:
 
 ```cron
 0 8 * * * cd /home/you/digests && ./digest.sh >> digest.log 2>&1
 ```
 
-## 8. When you want a library instead of a pipe
+## 9. When you want a library instead of a pipe
 
 Once the shell script grows conditionals, move to Node. The same data, one import:
 
@@ -219,11 +297,21 @@ Once the shell script grows conditionals, move to Node. The same data, one impor
 import { Scraper } from 'xactions/client';
 
 const scraper = new Scraper();
-const profile = await scraper.getProfile('NASA');
-const tweets = await scraper.getTweets('NASA', 100);
 
-console.log(profile.followersCount, tweets.length);
+const profile = await scraper.getProfile('NASA');
+console.log(profile.name, profile.followersCount);
+
+// getTweets is an async generator, not a promise for an array. It pages under
+// the hood and yields as results arrive, so `break` costs nothing and memory
+// stays flat no matter how big the account is.
+const tweets = [];
+for await (const tweet of scraper.getTweets('NASA', 100)) {
+  tweets.push(tweet);
+}
+console.log(`${tweets.length} posts`);
 ```
+
+`getFollowers`, `getFollowing`, and `searchTweets` are generators too. Awaiting one directly hands you the generator object, not the data, which is the single most common mistake when moving from the CLI to the library.
 
 The HTTP client is the same one the CLI uses for guest-tier reads: no browser, no Chromium download.
 
@@ -235,7 +323,9 @@ The HTTP client is the same one the CLI uses for guest-tier reads: no browser, n
 - Progress goes to stderr, so you keep it while redirecting
 - `jq` filters beat waiting for someone to add a flag
 - Exit codes make XActions safe inside `set -e` scripts and cron
+- `--compact` and `--fields` are the agent-shaped output: one record per line, no braces
 - `--output` handles CSV, XLSX, and Google Sheets without any jq at all
+- Generators, not arrays: `for await`, never `await scraper.getTweets(...)`
 
 ## Next
 

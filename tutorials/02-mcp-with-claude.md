@@ -3,7 +3,8 @@
 **Time:** 10 minutes · **Login required:** optional · **You need:** Node.js 18+ and an MCP client
 
 MCP (Model Context Protocol) is how AI assistants call external tools. This
-tutorial connects XActions' 144 tools to Claude Desktop, Cursor, or Windsurf, so
+tutorial connects the XActions MCP server's 153 tools to Claude Desktop, Cursor,
+or Windsurf, so
 you can ask for a competitor analysis in English and have the assistant actually
 go and get the data.
 
@@ -24,9 +25,16 @@ You should see, on stderr:
 
 ```
 💻 XActions MCP Server: Local mode (free)
-⚡ XActions MCP Server v3.5.0 - 153 tools
+   Using Puppeteer for browser automation
 
-📋 Tools available: 151
+⚡ XActions MCP Server v3.5.0 — 153 tools
+   The free, open-source Twitter/X MCP server
+   https://github.com/nirholas/XActions
+
+⚠️  No auth_token configured. Some tools require authentication.
+   ...
+
+📋 Tools available: 153
    Scraping: x_get_profile, x_get_followers, x_get_following, x_get_tweets, x_search_tweets, x_get_thread, x_download_video
    Analysis: x_detect_unfollowers, x_analyze_sentiment, x_best_time_to_post, x_competitor_analysis, x_brand_monitor
    Actions: x_follow, x_unfollow, x_like, x_post_tweet, x_post_thread, x_reply
@@ -48,16 +56,19 @@ node examples/08-mcp-tool-call.js
 ```
 
 ```
-Connected to xactions-mcp v3.4.4
-Server offers 144 tools.
+Connected to xactions-mcp v3.5.0
+Server offers 153 tools.
 
-Calling x_get_profile — Get profile information for a user...
+Calling x_get_profile — Get profile information for a user including bio, follower count, etc. Supports Twitter, Bluesky, Threads, and Mastodon.
 
 {
   "name": "NASA",
   "username": "NASA",
-  "followers": 92227380,
-  ...
+  "bio": "Making the seemingly impossible, possible. ✨",
+  "followers": 92356527,
+  "tweets": 74197,
+  "verified": true,
+  "platform": "twitter"
 }
 ```
 
@@ -118,7 +129,7 @@ claude mcp add xactions -- npx -y xactions-mcp
 
 ## Step 3 — Add a session
 
-Without a session the server still starts and still offers all 144 tools. The
+Without a session the MCP server still starts and still offers all 153 tools. The
 guest-tier ones work; the rest report that they need a login. To unlock
 everything, put your cookies in the `env` block:
 
@@ -176,7 +187,7 @@ The assistant chains tools on its own: `x_get_profile` to resolve the account,
 
 ## Step 5 — Know what it can do
 
-The 144 tools group roughly like this:
+The MCP server's 153 tools group roughly like this:
 
 | Group | Examples | Session |
 |-------|----------|:-------:|
@@ -184,17 +195,21 @@ The 144 tools group roughly like this:
 | Scraping | `x_get_followers`, `x_get_following`, `x_search_tweets` | yes |
 | Posting | `x_post_tweet`, `x_post_thread`, `x_create_poll`, `x_schedule_post` | yes |
 | Engagement | `x_like`, `x_retweet`, `x_reply`, `x_bookmark` | yes |
-| Bulk | `x_unfollow_non_followers`, `x_detect_unfollowers`, `x_mass_block` | yes |
-| Analytics | `x_best_time_to_post`, `x_engagement_analytics`, `x_shadowban_check` | mixed |
+| Bulk | `x_unfollow_non_followers`, `x_detect_unfollowers`, `x_smart_unfollow` | yes |
+| Analytics | `x_best_time_to_post`, `x_engagement_report`, `x_get_post_analytics` | mixed |
+| Drafts | `x_list_drafts`, `x_draft_status`, `x_approve_draft`, `x_discard_draft` | no |
 | Cross-platform | Bluesky, Mastodon, and Threads variants of the scrapers | no |
 
-To list them yourself:
+To list them yourself, ask the assistant *"What XActions tools do you have?"*,
+or print the real list with no assistant in the loop:
 
 ```bash
 node examples/08-mcp-tool-call.js x_get_profile nasa
 ```
 
-or ask the assistant: *"What XActions tools do you have?"*
+That example prints the live tool count and the description of whichever tool
+you name, so it doubles as a way to check a tool exists before building a prompt
+around it.
 
 ---
 
@@ -204,12 +219,100 @@ Tools tell an assistant *what it can do*. [Skills](../docs/skills.md) tell it
 *how to do a specific job well*: which tools in which order, what the rate
 limits are, what not to do.
 
+There are 49 of them in [`skills/`](../skills/). They are plain markdown, so
+they work with any assistant, MCP or not. Install them where your agent looks:
+
+```bash
+npx xactions skills list                            # what exists, and where it is installed
+npx xactions skills install --all --global          # every skill, under your home directory
+npx xactions skills install follower-monitoring     # one skill, into ./.claude/skills
+npx xactions skills install --all --target cursor   # or codex, windsurf, project
+```
+
+```
+  + follower-monitoring            claude    installed /your/project/.claude/skills/follower-monitoring
+  + content-posting                claude    installed /your/project/.claude/skills/content-posting
+
+  2 installed
+```
+
+`--target` picks the agent (`claude`, `project`, `cursor`, `codex`, `windsurf`);
+`--global` installs under your home directory instead of the current project.
+`xactions skills show <name>` prints one without installing it, and
+`xactions skills uninstall` reverses it. `xactions doctor` tells you how many are
+installed for each agent.
+
+Without installing anything you can still point an assistant straight at one:
+
 ```
 Read skills/follower-monitoring/SKILL.md, then set up unfollower tracking for my account.
 ```
 
-There are 49 of them in [`skills/`](../skills/). They are plain markdown, so they
-work with any assistant, MCP or not.
+---
+
+## Step 7 — Make it ask before it acts
+
+By default an assistant that decides to call `x_post_tweet` posts. If you would
+rather review first, start the server in approval mode:
+
+```json
+{
+  "mcpServers": {
+    "xactions": {
+      "command": "npx",
+      "args": ["-y", "xactions-mcp"],
+      "env": {
+        "XACTIONS_SESSION_COOKIE": "your_auth_token_value",
+        "XACTIONS_CSRF_TOKEN": "your_ct0_value",
+        "XACTIONS_MCP_REQUIRE_APPROVAL": "1"
+      }
+    }
+  }
+}
+```
+
+Now every write tool (post, reply, follow, unfollow, like, block, DM) is saved
+as a draft instead of running, and the assistant is told exactly that:
+
+```
+{
+  "held": true,
+  "draftId": "88aae55b",
+  "tool": "x_post_tweet",
+  "args": { "text": "A post an agent proposed. Never sent." },
+  "message": "Approval mode is on. \"x_post_tweet\" was saved as draft 88aae55b and has NOT been executed.",
+  "next": "Review with x_draft_status, run with x_approve_draft {\"id\":\"88aae55b\"}, or drop with x_discard_draft."
+}
+```
+
+Reads are untouched, so the assistant can still research freely. Review the
+queue from your terminal:
+
+```bash
+xactions drafts list                 # everything waiting, newest first
+xactions drafts show 88aae55b        # one draft with its full arguments
+xactions drafts approve 88aae55b     # run it exactly as the agent submitted it
+xactions drafts discard 88aae55b     # delete it without running it
+xactions drafts clear                # drop executed and failed ones, keep pending
+```
+
+```
+  ID        STATUS    AGE       TOOL                      ARGS
+  88aae55b  pending   just now  x_post_tweet              text="A post an agent proposed. Never sent."
+
+  1 draft, 1 pending. Approve one with `xactions drafts approve <id>`, everything with `--all`.
+```
+
+Approving replays the stored call through the same code path the original call
+would have taken, so an approved draft is the thing the agent asked for, not a
+re-typed approximation of it.
+
+Drafts live in `~/.xactions/mcp-drafts.json`. The assistant can inspect its own
+queue with `x_list_drafts` and `x_draft_status`.
+
+[`examples/09-draft-approval.js`](../examples/09-draft-approval.js) walks the
+whole cycle in one runnable program, against a throwaway draft store, and never
+touches X.
 
 ---
 
@@ -252,7 +355,8 @@ Fuller list: [docs/troubleshooting.md](../docs/troubleshooting.md#mcp-server-not
 - Config lives in the client, and a full restart is required
 - Cookies go in the MCP `env` block, not a `.env` file
 - Guest tools work with no login; the rest need `auth_token` **and** `ct0`
-- Skills turn a pile of tools into a procedure
+- Skills turn a pile of tools into a procedure, and `xactions skills install` puts them where your agent looks
+- `XACTIONS_MCP_REQUIRE_APPROVAL=1` turns every write into a draft you approve
 
 ## Next
 

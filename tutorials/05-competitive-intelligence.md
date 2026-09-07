@@ -26,47 +26,48 @@ By default it samples the last 50 posts. The report is dense, so here is what ea
 
 ```
   Audience
-  Followers:            92.2M  119 following
-  Follower ratio:       775.1K
-  Growth:               13.6K/day  lifetime average over 6,802 days
+  Followers:            92.4M  117 following
+  Follower ratio:       789.4K
+  Growth:               13.5K/day  lifetime average over 6,826 days
 ```
 
 **Follower ratio** is followers divided by following. A high ratio means an account people seek out; a ratio near 1 usually means follow-for-follow growth. **Growth** is a lifetime average, so it flatters accounts that grew fast years ago. Treat it as an upper bound, not a current rate.
 
 ```
   Output
-  Posts, lifetime:      74.3K  10.92/day
-  Posts, sampled:       2.48/day  30 posts over 12.1 days
-  Typical gap:          2.11h
-  Last post:            5h ago
+  Posts, lifetime:      74.2K  10.87/day
+  Posts, sampled:       2.49/day  50 posts over 20.1 days
+  Typical gap:          1.99h
+  Last post:            7h ago
 ```
 
-The two rates are the interesting part. Lifetime says 10.92/day; the recent sample says 2.48/day. This account posts far less now than it used to. One number would have hidden that entirely.
+The two rates are the interesting part. Lifetime says 10.87/day; the recent sample says 2.49/day. This account posts a quarter as often now as it did on average across its life. One number would have hidden that entirely.
 
 ```
   Engagement
-  Rate:                 0.003%  median original post, as a share of followers
-  Median per post:      2,713  ♥ 2,127  ↻ 330  💬 152
-  Median views:         1M  0.26% of viewers interact, n=17
+  Rate:                 0.007%  median original post, as a share of followers
+  Median per post:      6,466.5  ♥ 5,426.5  ↻ 813  💬 176.5
+  Best in sample:       20.9K
+  Median views:         1.2M  0.44% of viewers interact, n=20
 ```
 
-(`n=17` is how many sampled posts reported a view count. A small `n` there means the view-rate figure is directional, not precise.)
+(`n=20` is how many sampled posts reported a view count. A small `n` there means the view-rate figure is directional, not precise.)
 
-**Median, not mean.** One viral post drags a mean anywhere; the median tells you what a typical post does. The engagement rate looks tiny because it is measured against 92 million followers, which is why the views-based number underneath it matters more: 0.26% of people who actually saw the post interacted with it.
+**Median, not mean.** One viral post drags a mean anywhere; the median tells you what a typical post does. The engagement rate looks tiny because it is measured against 92 million followers, which is why the views-based number underneath it matters more: 0.44% of the people who actually saw the post interacted with it.
 
 ```
   Content mix
-  Original:             56.7%  replies 0%  reposts 43.3%  quotes 0%
-  With media:           64.7%  links 88.2%  hashtags 0%
+  Original:             36%  replies 0%  reposts 60%  quotes 4%
+  With media:           80%  links 75%  hashtags 0%
 ```
 
-Nearly half of this account's output is reposts, and zero percent is replies. That is a broadcast account, not a conversational one. If you are studying it to copy the strategy, that distinction matters more than any engagement number.
+Three fifths of this account's output is reposts, and zero percent is replies. That is a curation feed, not a conversation. If you are studying it to copy the strategy, that distinction matters more than any engagement number.
 
 ```
   Timing (UTC)
-  00   ▃  ▅      ▄  ▅ ▂▃▆█  23
-  Best hour:            21:00  median 5,470
-  Best weekday:         Thursday  median 3,159
+  00              ▅▅▂█▅▂▆▁▆ 23
+  Best hour:            17:00  median 8,692
+  Best weekday:         Thursday  median 8,377
 ```
 
 The sparkline is engagement by hour of day, UTC, across the sample. Sample more posts for a more trustworthy peak:
@@ -96,7 +97,7 @@ Read the comparison in this order:
 xactions audience NASA SpaceX --max 2000
 ```
 
-This needs a session (follower lists are not on the guest tier), so run `xactions connect` first if `xactions doctor` says you are guest-only.
+This is the one command on this page that needs a session, because follower lists are not on the guest tier. Run `xactions connect` first if `xactions doctor` says you are guest-only.
 
 Overlap answers a question analysis of a single account cannot: is this a shared audience or two separate ones? High overlap means you are choosing between two accounts for the same people. Low overlap means there is an audience you are not reaching.
 
@@ -130,19 +131,19 @@ xactions analyze NASA --json | jq '{
 
 ```json
 {
-  "followers": 92238530,
-  "ratio": 775113.7,
-  "postsPerDay": 2.82,
-  "lifetime": 10.92,
-  "median": 2214,
-  "viewRate": 0.27,
-  "originals": 55,
-  "bestHour": 21,
-  "bestWeekday": "Friday"
+  "followers": 92356555,
+  "ratio": 789372.26,
+  "postsPerDay": 2.49,
+  "lifetime": 10.87,
+  "median": 6466.5,
+  "viewRate": 0.44,
+  "originals": 36,
+  "bestHour": 17,
+  "bestWeekday": "Thursday"
 }
 ```
 
-The top-level keys are `identity`, `audience`, `output`, `engagement`, `mix`, `timing`, `signals`, `topPosts`, `topHashtags`, `topMentions`, and `meta`. Run `xactions analyze NASA --json | jq 'keys'` to see them, and `jq '.engagement'` to open any one up.
+The top-level keys are `identity`, `audience`, `output`, `engagement`, `mix`, `timing`, `topPosts`, `topHashtags`, `topMentions`, `meta`, and `signals`. Run `xactions analyze NASA --json | jq 'keys'` to see them, and `jq '.engagement'` to open any one up.
 
 `signals` is the observations block from the formatted report, as data:
 
@@ -150,16 +151,59 @@ The top-level keys are `identity`, `audience`, `output`, `engagement`, `mix`, `t
 xactions analyze NASA --json | jq -r '.signals[] | "\(.level | ascii_upcase): \(.title)"'
 ```
 
+```
+GOOD: Followed far more than it follows
+WATCH: Engagement rate of 0.007%
+WATCH: 60% of the timeline is retweets
+GOOD: 80% of posts carry media
+INFO: Best hour is 17:00 UTC
+GOOD: Averaging 13.5K new followers a day
+```
+
 `timing.byHourUTC` is the 24-entry array behind the sparkline, so you can find the peak yourself over a large sample:
 
 ```bash
-xactions analyze NASA --limit 200 --json \
+xactions analyze NASA --json \
   | jq -r '.timing.byHourUTC | max_by(.medianEngagement) | "best hour \(.index):00 UTC, median \(.medianEngagement)"'
+```
+
+```
+best hour 17:00 UTC, median 8692
 ```
 
 `timing.bestHourUTC` is `null` when no single hour cleared `timing.minimumBucketSample` posts, and the formatted report says "not enough data" rather than inventing a peak. Raise `--limit` until it resolves; the sparkline is readable either way.
 
-## 5. Track it over time
+## 5. One line per record, for agents and pipes
+
+`--json` is the right shape for `jq`. It is the wrong shape for an LLM, which
+pays for every brace. `--compact` prints one record per line as tab-separated
+`key=value` pairs, with no colours and no spinner:
+
+```bash
+xactions profile NASA --compact
+```
+
+```
+id=11348282	username=NASA	name=NASA	followers=92356563	following=117	tweets=74197	verified=false	bio=Making the seemingly impossible, possible. ✨
+```
+
+`--fields` narrows it to the columns you actually want:
+
+```bash
+xactions tweets NASA --limit 3 --compact --fields id,likes,text
+```
+
+```
+id=2093063226351136958	likes=1639	text=Join us tomorrow at 11am ET (1500 UTC) as the Artemis II crew receives the Congressional Space Medal of Honor! ...
+id=2092962731666051534	likes=0	text=RT @LearnWithNASA: Space telescopes help us understand the origins of the universe. ...
+id=2092744659667673582	likes=6753	text=A partial lunar eclipse will pass over the Americas ...
+```
+
+Both are global flags, so they work on any command that emits records. One line
+per record also means `cut`, `awk`, and `grep` work without a JSON parser in the
+pipeline.
+
+## 6. Track it over time
 
 A single report is a snapshot. The interesting signal is the change:
 
@@ -175,7 +219,7 @@ xactions snapshot NASA          # start auto-snapshotting
 xactions history NASA           # read the series back
 ```
 
-## 6. A comparison script
+## 7. A comparison script
 
 ```bash
 #!/usr/bin/env bash
@@ -200,6 +244,15 @@ chmod +x compare.sh
 ./compare.sh NASA SpaceX
 ```
 
+```
+ACCOUNT                 FOLLOWERS  POSTS/DAY   MED_ENGAGE  BEST_HR
+SpaceX                   41896750       2.96        10377       21
+NASA                     92356691       2.44       4088.5       17
+```
+
+Twice the followers, half the engagement per post, and a different peak hour.
+That row is the whole point of the exercise.
+
 Run it against your own account and the five accounts you compete with. The row that surprises you is the one worth investigating.
 
 ---
@@ -210,6 +263,7 @@ Run it against your own account and the five accounts you compete with. The row 
 - That lifetime and recent cadence disagreeing is itself the finding
 - How content mix identifies what kind of account you are actually looking at
 - Turning reports into files, JSON, and a time series you can track
+- `--compact` and `--fields` when the consumer is an agent or a shell, not you
 
 ## Next
 

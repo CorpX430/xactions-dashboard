@@ -5,7 +5,7 @@ do one job with XActions. Each is a markdown file with YAML frontmatter, written
 for a model to read rather than a human: it names the scripts to run, the page
 to run them on, the arguments that matter, and the mistakes to avoid.
 
-They are how you get from "Claude has 144 tools" to "Claude knows which three of
+They are how you get from "Claude has 153 tools" to "Claude knows which three of
 them to use, in what order, for this task."
 
 - Location: [`skills/`](../skills/)
@@ -58,6 +58,11 @@ the same report as JSON.
 
 `xactions doctor` reports how many skills are installed per target, and
 `xactions skills list` marks each skill with where it was found.
+
+Skills and MCP tool groups solve the same problem from two directions. A skill
+tells the model which tools to reach for; `npx xactions-mcp --tools <groups>`
+stops it from seeing the rest at all. Pairing a narrow skill with a narrow tool
+allowlist is the strongest setup: see [MCP Setup](mcp-setup.md).
 
 ### Install with any spec-compliant installer
 
@@ -265,7 +270,7 @@ Rules that keep a skill useful:
 
 ## Related
 
-- [MCP Setup](mcp-setup.md) — the 153 tools skills drive
-- [Browser Scripts](browser-scripts.md) — what most skills reference
-- [Agents](agents.md) — the autonomous agent that consumes skills
-- [AGENTS.md](../AGENTS.md) — integration notes for AI coding assistants, and when to shell out to the CLI instead of loading the MCP server
+- [MCP Setup](mcp-setup.md): the 153 tools skills drive
+- [Browser Scripts](browser-scripts.md): what most skills reference
+- [Agents](agents.md): the autonomous agent that consumes skills
+- [AGENTS.md](../AGENTS.md): integration notes for AI coding assistants, and when to shell out to the CLI instead of loading the MCP server

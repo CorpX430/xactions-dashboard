@@ -35,20 +35,29 @@ AuthenticationError [AUTH_REQUIRED]: HTTP 404 on
 X answers a logged-out request to a session-tier endpoint with a bare `404`,
 which is why the error mentions 404 even though the resource exists.
 
-**Fix:** supply a session.
+**Fix:** supply a session. Fastest first:
 
 ```bash
-npx xactions login          # prompts for auth_token and ct0
+xactions login --from-browser firefox     # reads x.com cookies out of your browser
+xactions login --cookies-file cookies.txt # a cookies file you already exported
+xactions connect                          # log in through a real browser window
+xactions login                            # paste auth_token and ct0 by hand
 ```
 
-or, for the library and the examples:
+`--from-browser` accepts `chrome`, `chromium`, `brave`, `edge`, `arc` and
+`firefox`. It works headlessly for Firefox everywhere, and for Chromium-family
+browsers on Linux and macOS. If your browser seals its cookie store with the
+system keyring, or you are on Windows, XActions tells you which file to export
+and use with `--cookies-file`.
+
+For the library and the examples:
 
 ```bash
 export X_AUTH_TOKEN=...
 export X_CSRF_TOKEN=...
 ```
 
-Get both values from DevTools → **Application** → **Cookies** → `https://x.com`.
+Get both values from DevTools, **Application**, **Cookies**, `https://x.com`.
 
 ### Why ct0 matters
 
@@ -126,6 +135,15 @@ catch (error) {
 substantially, so a login is the fix for read-heavy work as well as for
 session-tier endpoints.
 
+One session gets roughly 50 GraphQL calls per operation per 15 minutes, which
+stalls a large follower scrape partway through. Two features exist for that: an
+**account pool** spreads calls over several sessions and rotates on a 429, and
+**checkpoints** let an interrupted scrape resume from its last cursor instead of
+starting over. Both are in
+[scraping-infrastructure.md](scraping-infrastructure.md#account-pool-and-resumable-scrapes-http-scraper).
+`xactions doctor` reports whether a pool exists and how many of its accounts can
+serve right now.
+
 For browser console scripts, throttling looks different: buttons quietly stop
 responding and the progress count stops climbing while the page keeps
 scrolling. Stop the run, wait an hour, and raise `delay` in the script's
@@ -143,18 +161,37 @@ vary by account age and standing, and X does not publish them.
 HTTP 404: {"message":"Query not found"}
 ```
 
-X rotates the query IDs of its internal GraphQL endpoints. When one changes,
-requests to the old ID return this.
+X rotates the query IDs of its internal GraphQL endpoints whenever it ships a
+new web bundle, and a request to the old ID answers with this.
 
-XActions keeps every query ID in one place,
-[`src/scrapers/twitter/http/endpoints.js`](../src/scrapers/twitter/http/endpoints.js),
-and a test fails if a second copy ever appears. To update one:
+**You should almost never see it.** XActions discovers the current IDs the same
+way x.com's own client gets them: it reads them out of the live JavaScript
+bundles and caches them in `~/.xactions/query-ids.json`. A call that fails for a
+stale ID triggers one refresh and one retry automatically, and a cache older
+than 24 hours refreshes in the background. The pinned table in
+[`src/scrapers/twitter/http/endpoints.js`](../src/scrapers/twitter/http/endpoints.js)
+is only the offline fallback.
 
-1. Open x.com in a browser with DevTools on the **Network** tab.
-2. Trigger the action (view a profile, run a search).
-3. Find the `graphql` request whose path ends in the operation name.
-4. Copy the ID segment from the URL: `/i/api/graphql/<THIS>/UserByScreenName`.
-5. Update the entry in `endpoints.js` and open a PR. Others are hitting it too.
+If you do see it:
+
+```bash
+xactions doctor --refresh-ids
+```
+
+That probes x.com now, rewrites the cache, and prints which operations resolve
+from the cache versus the pinned table. Then re-run your command.
+
+Still failing? The three causes, in order of likelihood:
+
+- **No network route to x.com** (a proxy, a firewall, an offline machine).
+  Discovery cannot run, so the pinned table is all there is. `xactions doctor`
+  says so explicitly.
+- **The operation is not one XActions pins.** `resolveGraphQL('<Operation>')`
+  falls through to the generated table, which covers every operation x.com
+  ships. See [scraping-infrastructure.md](scraping-infrastructure.md#graphql-query-id-discovery).
+- **X removed the operation.** `npm run sync:endpoints:check` exits non-zero
+  when an operation XActions tracks has disappeared from x.com's bundles.
+  That one is worth an issue.
 
 ---
 
@@ -169,6 +206,14 @@ node examples/08-mcp-tool-call.js
 That spawns the server, completes the handshake, lists the tools, and calls
 one. If it prints a profile, the server is fine and the problem is client
 configuration.
+
+If the handshake works but the tools you expect are missing, check whether the
+server was started with a filter: `--tools` / `XACTIONS_MCP_TOOLS` and
+`--exclude` / `XACTIONS_MCP_EXCLUDE` hide everything they do not name. Run
+`npx xactions-mcp --list-groups` to see the full set. And if write tools return
+a draft id instead of acting, the server is in approval mode
+(`--require-approval`): run `xactions drafts list` to see what is held, then
+`xactions drafts approve <id>`.
 
 Then check, in order:
 

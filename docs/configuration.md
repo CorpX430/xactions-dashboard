@@ -21,8 +21,17 @@ if you are running the server.
 Everything that reads private or session-tier data needs two cookies from a
 logged-in x.com session.
 
-**Where to get them:** open [x.com](https://x.com), log in, then DevTools
-(<kbd>F12</kbd>) → **Application** → **Cookies** → `https://x.com`.
+**Where to get them:** the CLI can read them for you, which is faster and less
+error-prone than copying by hand.
+
+```bash
+xactions login --from-browser firefox     # also: chrome, chromium, brave, edge, arc
+xactions login --cookies-file cookies.txt # Netscape, Cookie-Editor JSON, Playwright storageState
+xactions connect                          # log in through a real browser window
+```
+
+By hand: open [x.com](https://x.com), log in, then DevTools
+(<kbd>F12</kbd>), **Application**, **Cookies**, `https://x.com`.
 
 | Cookie | What it is | Required |
 |--------|------------|:--------:|
@@ -94,9 +103,30 @@ Set them in the `env` block of your AI client's MCP configuration, not in a
 }
 ```
 
-Without them the server still starts and still serves all 144 tools; the
+Without them the server still starts and still serves all 153 tools. The
 guest-tier ones (profiles, public timelines) work and the rest report that they
 need a session.
+
+### MCP server flags and env
+
+| Variable | Flag | Effect |
+|----------|------|--------|
+| `XACTIONS_MCP_TOOLS` | `--tools <list>` | Expose only these tools. Accepts tool names, group names, or `prefix*` patterns, comma separated. |
+| `XACTIONS_MCP_EXCLUDE` | `--exclude <list>` | Hide these, same syntax. |
+| `XACTIONS_MCP_REQUIRE_APPROVAL` | `--require-approval` | Hold every write call as a draft. Nothing reaches X until `xactions drafts approve <id>` runs in a terminal. |
+| `MCP_TRANSPORT=http` | `--http` | Serve Streamable HTTP on `/mcp` instead of stdio. |
+| `XACTIONS_MCP_HOST` | `--host <addr>` | HTTP bind address, default `127.0.0.1`. |
+| `PORT` | `--port <n>` | HTTP port, default `8787`. |
+| `XACTIONS_MCP_TOKEN` | none | Required bearer token for `--http`. Never expose the HTTP transport without one. |
+| `XACTIONS_ACTION_CAPS` | none | JSON object overriding the daily per-action caps. Also readable from `~/.xactions/action-caps.json`. |
+| `XACTIONS_ACCOUNT` | none | Names which account the daily action ledger is charged against. Default `default`. |
+
+`npx xactions-mcp --list-groups` prints every group with its tools, which is the
+fastest way to build a `--tools` value. The groups are `read`, `analytics`,
+`write`, `automation`, `monitoring`, `workflows`, `ai`, `data`, `graph`,
+`persona`, `dm`, `lists`, `spaces`, `grok`, `auth` and `drafts`. The `drafts`
+group is always available regardless of `--tools`, so an agent can always report
+what it is waiting on.
 
 ### Keeping them out of your repo
 
@@ -177,7 +207,7 @@ The autonomous agent reads two JSON files that decide what it talks about and
 how it sounds. Both live in [`config/`](../config/) and are plain data, so
 adding your own is a matter of dropping in a file.
 
-### Personas — how the agent writes
+### Personas: how the agent writes
 
 [`config/personas/`](../config/personas/) ships three:
 `thought-leader`, `technical-builder`, `community-builder`.
@@ -197,7 +227,7 @@ adding your own is a matter of dropping in a file.
 reads like a person and output that reads like a bot, and it is the first field
 worth editing.
 
-### Niches — what the agent looks at
+### Niches: what the agent looks at
 
 [`config/niches/`](../config/niches/) ships `ai-engineering`, `saas-startups`,
 and `web3-crypto`.
@@ -232,13 +262,14 @@ Browser scripts are configured in the script itself. Every one opens with a
 const CONFIG = {
   maxUnfollows: Infinity,
   whitelist: [],
-  dryRun: true,       // Preview without acting — SET FALSE TO RUN
+  dryRun: true,       // Preview without acting. Set false to run.
   delay: 2000,
 };
 ```
 
-`dryRun` defaults to `true` on everything destructive. See
-[browser-scripts.md](browser-scripts.md#start-in-dry-run).
+Most destructive scripts ship with `dryRun: true`, but not all of them do, and
+the ones that do not act on the first run. **Read the `CONFIG` block before you
+paste.** See [browser-scripts.md](browser-scripts.md#start-in-dry-run).
 
 ---
 

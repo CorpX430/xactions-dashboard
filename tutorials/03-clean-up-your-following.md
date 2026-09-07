@@ -15,13 +15,18 @@ is built around not doing that.
 ## Step 0 — Log in
 
 ```bash
-npx xactions login
+npx xactions connect
 ```
 
+That opens a real browser, waits for you to log in normally, and captures the
+session. If you are already logged in to X in a local browser,
+`npx xactions login --from-browser chrome` skips the window entirely.
+
 Follower and following lists are session-tier: X will not serve them to a
-logged-out request. You need both `auth_token` and `ct0`. See
-[Tutorial 01, step 4](01-your-first-scrape.md#step-4--log-in) if you have not
-done this.
+logged-out request, and you need both `auth_token` and `ct0`. See
+[Tutorial 01, step 4](01-your-first-scrape.md#step-4--log-in) for the manual
+route and for what each cookie does. `npx xactions doctor` confirms where you
+stand.
 
 ---
 
@@ -50,8 +55,11 @@ This reads both lists and diffs them. It changes nothing.
 Save the full list before going further:
 
 ```bash
-npx xactions non-followers YOUR_USERNAME --output non-followers.json
+npx xactions non-followers YOUR_USERNAME --limit 5000 --output non-followers.json
 ```
+
+`--limit` defaults to 500, which is not enough for most accounts. `--json`
+prints the same data on stdout instead, if you would rather pipe it.
 
 ---
 
@@ -169,6 +177,21 @@ npx xactions bulk unfollow cut-list.json --delay 3000 --resume
 It accepts JSON, CSV, or a plain text file of handles, so you can hand-edit the
 list before running it. That is usually worth doing.
 
+### Ask an assistant, with a hand on the brake
+
+If an assistant is driving through [MCP](02-mcp-with-claude.md), run the server
+with `XACTIONS_MCP_REQUIRE_APPROVAL=1`. Every unfollow it decides on is held as a
+draft rather than executed, and you release them yourself:
+
+```bash
+xactions drafts list
+xactions drafts approve <id>
+xactions drafts discard <id>
+```
+
+That is the difference between an assistant that suggests 400 unfollows and one
+that performs them. See [Tutorial 02, step 7](02-mcp-with-claude.md#step-7--make-it-ask-before-it-acts).
+
 ### Ask an assistant
 
 With the [MCP server](02-mcp-with-claude.md) configured:
@@ -255,6 +278,7 @@ PostgreSQL. See [docs/database.md](../docs/database.md#follower-history).
 - `dryRun: true` is the default for a reason
 - 50 at a time, 3s apart, a few hundred a day
 - Unfollower detection is snapshot diffing, so start recording now
+- Let an agent do it only behind the draft-approval gate
 
 ## Next
 

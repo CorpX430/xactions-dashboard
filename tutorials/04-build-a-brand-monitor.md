@@ -22,8 +22,9 @@ export X_AUTH_TOKEN=...    # from DevTools > Application > Cookies > x.com
 export X_CSRF_TOKEN=...
 ```
 
-Search is session-tier, so both cookies are required. See
-[Tutorial 01, step 4](01-your-first-scrape.md#step-4--log-in).
+Search is session-tier, so both cookies are required. `npx xactions connect`
+captures them for you through a real browser if you would rather not dig them
+out by hand. See [Tutorial 01, step 4](01-your-first-scrape.md#step-4--log-in).
 
 ---
 
@@ -40,7 +41,7 @@ const scraper = new Scraper();
 await scraper.setCookies(`auth_token=${process.env.X_AUTH_TOKEN}; ct0=${process.env.X_CSRF_TOKEN}`);
 
 for await (const tweet of scraper.searchTweets(QUERY, 20, SearchMode.Latest)) {
-  console.log(`@${tweet.username}: ${tweet.text.replace(/\s+/g, ' ').slice(0, 100)}`);
+  console.log(`${tweet.id}: ${tweet.text.replace(/\s+/g, ' ').slice(0, 100)}`);
 }
 ```
 
@@ -75,7 +76,7 @@ async function poll() {
     if (baseline) continue;
 
     fresh += 1;
-    console.log(`@${tweet.username}: ${tweet.text.slice(0, 100)}`);
+    console.log(`${tweet.id}: ${tweet.text.slice(0, 100)}`);
   }
 
   if (baseline) {
@@ -115,9 +116,14 @@ fresh += 1;
 const sentiment = await analyzeSentiment(tweet.text || '');
 const marker = { positive: '+', negative: '!', neutral: ' ' }[sentiment.label];
 
-console.log(`${marker} @${tweet.username}: ${tweet.text.slice(0, 90)}`);
-console.log(`   https://x.com/${tweet.username}/status/${tweet.id}`);
+console.log(`${marker} ${tweet.text.slice(0, 90)}`);
+console.log(`   https://x.com/i/web/status/${tweet.id}`);
 ```
+
+`https://x.com/i/web/status/<id>` is the form to reach for when you are building
+links from search or timeline results. It needs only the post id and redirects
+to the real permalink, so it keeps working even when a result does not carry the
+author's handle.
 
 Want a model instead? Same function, same return shape, so nothing downstream
 changes:
@@ -146,8 +152,8 @@ async function notify(tweet, sentiment) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text: `Negative mention by @${tweet.username}: ${tweet.text}`,
-        url: `https://x.com/${tweet.username}/status/${tweet.id}`,
+        text: `Negative mention: ${tweet.text}`,
+        url: `https://x.com/i/web/status/${tweet.id}`,
         sentiment,
         detectedAt: new Date().toISOString(),
       }),
@@ -263,6 +269,7 @@ anywhere will do.
 - Sentiment analysis runs offline and free; upgrade to a model only if you must
 - A failed poll returns, it does not throw
 - `error.code === 'RATE_LIMITED'` carries `rateLimitReset`: use it to back off
+- Build post links from the id (`/i/web/status/<id>`), which never depends on a handle
 
 ## Next
 
