@@ -47,8 +47,9 @@
     fetchAutomationStatus();
     bindEvents();
     startResetCountdown();
-    // Seed initial simulated data
-    seedDemoData();
+    // Start empty; real values arrive from the API and Socket.IO events.
+    updateCharts();
+    updateHealth();
   }
 
   // ── Charts (Chart.js) ─────────────────────────────────
@@ -138,20 +139,6 @@
       labels.push(days[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.getDate());
     }
     return labels;
-  }
-
-  // ── Seed demo data ────────────────────────────────────
-  function seedDemoData() {
-    for (let i = 0; i < 24; i++) actionsPerHour[i] = Math.floor(Math.random() * 20);
-    for (let i = 0; i < 7; i++) {
-      followerGrowth[i] = Math.floor(Math.random() * 50) - 10;
-      engagementTrend[i] = +(Math.random() * 5).toFixed(1);
-    }
-    health.rateLimitUsed = Math.floor(Math.random() * 200);
-    health.dailyQuota = Math.floor(Math.random() * 300);
-    health.quotaResetAt = new Date(Date.now() + 3600000 * (Math.random() * 12 + 1)).toISOString();
-    updateCharts();
-    updateHealth();
   }
 
   function updateCharts() {

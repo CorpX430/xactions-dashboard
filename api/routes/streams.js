@@ -35,6 +35,7 @@ import {
   STREAM_TYPES,
   getPoolStatus,
 } from '../../src/streaming/index.js';
+import { captureEvent } from '../services/telemetry.js';
 
 const router = express.Router();
 
@@ -75,6 +76,7 @@ router.post('/', async (req, res) => {
     });
 
     res.status(201).json(stream);
+    captureEvent('stream_created', { streamId: stream.id, type, username }, req.user.clerkId || req.user.id);
   } catch (error) {
     const status = error.message?.includes('already exists') ? 409 : 500;
     console.error('❌ POST /api/streams error:', error.message);

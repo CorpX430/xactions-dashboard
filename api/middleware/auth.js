@@ -1,9 +1,6 @@
 // Copyright (c) 2024-2026 nich (@nichxbt). Licensed under the Apache License, Version 2.0.
-import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
 import { tierMeetsRequirement, getTier, isWithinLimit } from '../config/subscription-tiers.js';
-
-const prisma = new PrismaClient();
+import { resolveUserFromToken, prisma } from '../services/identity.js';
 
 const authMiddleware = async (req, res, next) => {
   try {
@@ -14,12 +11,7 @@ const authMiddleware = async (req, res, next) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId }
-    });
+    const user = await resolveUserFromToken(token);
 
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
@@ -29,7 +21,7 @@ const authMiddleware = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
+    if (['JsonWebTokenError', 'TokenInvalidError', 'JwtInvalidTokenError'].includes(error.name)) {
       return res.status(401).json({ error: 'Invalid token' });
     }
     if (error.name === 'TokenExpiredError') {
@@ -50,13 +42,7 @@ const optionalAuthMiddleware = async (req, res, next) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId }
-    });
-
-    req.user = user || null;
+    req.user = await resolveUserFromToken(token) || null;
     next();
   } catch (error) {
     // Invalid token, but still continue

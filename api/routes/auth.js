@@ -4,9 +4,29 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
+import { authenticate } from '../middleware/auth.js';
+import { captureEvent } from '../services/telemetry.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+router.get('/session', authenticate, (req, res) => {
+  const user = req.user;
+  captureEvent('auth_session_started', { provider: user.clerkId ? 'clerk' : 'local' }, user.clerkId || user.id);
+  res.json({
+    authenticated: true,
+    provider: user.clerkId ? 'clerk' : 'local',
+    user: {
+      id: user.id,
+      clerkId: user.clerkId || null,
+      email: user.email,
+      username: user.username,
+      credits: user.credits,
+      twitterConnected: Boolean(user.twitterAccessToken),
+      hasSessionCookie: Boolean(user.sessionCookie),
+    },
+  });
+});
 
 // Register new user (email optional)
 router.post('/register',
@@ -83,6 +103,7 @@ router.post('/register',
           subscription: user.subscription
         }
       });
+      captureEvent('auth_registered', { provider: 'local' }, user.id);
     } catch (error) {
       console.error('❌ Registration error:', error.message);
       // Surface real error in development for debugging
@@ -162,6 +183,7 @@ router.post('/login',
           twitterConnected: !!user.twitterAccessToken
         }
       });
+      captureEvent('auth_logged_in', { provider: 'local' }, user.id);
     } catch (error) {
       console.error('❌ Login error:', error.message);
       if (process.env.NODE_ENV !== 'production') {

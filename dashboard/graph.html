@@ -44,6 +44,7 @@
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js" defer></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" defer></script>
   <style>
     :root {
       --bg-primary: #000;
@@ -256,6 +257,19 @@
       .sidebar-left .action-btn { width: 50px; height: 50px; padding: 0; font-size: 0; }
       .sidebar-left .action-btn::before { content: '\2192'; font-size: 1.5rem; }
     }
+    .graph-details { position:absolute; top:72px; right:16px; width:280px; max-height:calc(100% - 88px); overflow:auto; padding:18px; border:1px solid var(--border); border-radius:16px; background:rgba(22,24,28,.94); backdrop-filter:blur(18px); box-shadow:0 18px 48px rgba(0,0,0,.55); transform:translateX(calc(100% + 24px)); transition:transform .24s cubic-bezier(.22,1,.36,1); z-index:20; }
+    .graph-details.visible { transform:translateX(0); }
+    .graph-details__close { position:absolute; top:10px; right:10px; width:28px; height:28px; border:1px solid var(--border); border-radius:50%; background:transparent; color:var(--text-secondary); cursor:pointer; font-size:20px; line-height:1; }
+    .graph-details__close:hover { color:var(--text-primary); border-color:var(--accent); }
+    .profile-head { display:flex; align-items:center; gap:10px; padding-right:28px; margin-bottom:16px; }
+    .profile-avatar { display:grid; place-items:center; width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg,#1d9bf0,#7856ff); font-weight:800; font-size:20px; }
+    .profile-name { font-weight:800; font-size:16px; }
+    .profile-handle { color:var(--text-secondary); font-size:12px; }
+    .profile-metrics { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:12px 0; }
+    .profile-metric { padding:10px; border:1px solid var(--border); border-radius:10px; background:rgba(0,0,0,.22); }
+    .profile-metric strong { display:block; font-size:16px; }
+    .profile-metric span { color:var(--text-secondary); font-size:10px; text-transform:uppercase; }
+    @media (max-width:768px) { .graph-details { top:auto; bottom:16px; left:16px; right:16px; width:auto; max-height:48vh; transform:translateY(calc(100% + 24px)); } .graph-details.visible { transform:translateY(0); } }
   </style>
 </head>
 <body>
@@ -302,6 +316,17 @@
       <div class="sidebar__section">
         <div class="sidebar__title">📁 Saved Graphs</div>
         <div id="graphList" style="max-height:140px;overflow-y:auto;"></div>
+      </div>
+
+      <!-- Graph filters -->
+      <div class="sidebar__section">
+        <div class="sidebar__title">🎛 Filters</div>
+        <label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;margin-bottom:8px;">Relationship
+          <select class="input" id="relationshipFilter" style="width:130px;padding:6px 8px"><option value="all">All</option><option value="mutual">Mutual</option><option value="one-way">One-way</option><option value="ghost">Ghost</option></select>
+        </label>
+        <label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;">Influence <input id="influenceFilter" type="range" min="0" max="100" value="0" style="width:120px"></label>
+        <div style="display:flex;justify-content:space-between;color:var(--text-secondary);font-size:10px;margin-top:3px"><span>0</span><span id="influenceValue">0+</span></div>
+        <button class="btn btn--secondary btn--full" id="clearFilters" style="margin-top:8px">Reset filters</button>
       </div>
 
       <!-- Tabs: Analysis / Recommendations -->
@@ -362,6 +387,10 @@
       </div>
 
       <svg id="graphSvg" style="display:none;"></svg>
+      <aside class="graph-details" id="graphDetails" aria-live="polite" aria-label="Selected profile details">
+        <button class="graph-details__close" id="closeDetails" aria-label="Close profile details">×</button>
+        <div id="graphDetailsBody"><div class="empty__icon">◉</div><strong>Select a node</strong><p style="color:var(--text-secondary);font-size:12px;margin-top:5px">Profile intelligence will appear here.</p></div>
+      </aside>
     </main>
   </div>
   </div><!-- /.app-layout -->
@@ -384,6 +413,26 @@
     let svgGroup = null;
     let zoom = null;
     let offlineWarned = false;
+    let filterState = { relationship: 'all', minInfluence: 0 };
+    const detailsPanel = document.getElementById('graphDetails');
+    const detailsBody = document.getElementById('graphDetailsBody');
+
+    function relationshipOf(node) {
+      if (node.relationship) return String(node.relationship).toLowerCase();
+      if (node.ghost || (node.followers === false && node.following === false)) return 'ghost';
+      if (node.mutual || node.isMutual || (node.followers && node.following)) return 'mutual';
+      return 'one-way';
+    }
+    const formatGraphNumber = (value) => {
+      const number = Number(value || 0);
+      return number >= 1000000 ? `${(number / 1000000).toFixed(1)}M` : number >= 1000 ? `${(number / 1000).toFixed(1)}K` : String(number);
+    };
+
+    function showDetails(node) {
+      const handle = String(node.username || node.id || '').replace(/^@/, '');
+      detailsBody.innerHTML = `<div class="profile-head"><div class="profile-avatar">${handle.slice(0, 1).toUpperCase() || '?'}</div><div><div class="profile-name">${node.name || '@' + handle}</div><div class="profile-handle">@${handle}</div></div></div><div class="profile-metrics"><div class="profile-metric"><strong>${formatGraphNumber(node.followersCount ?? node.followers ?? 0)}</strong><span>Followers</span></div><div class="profile-metric"><strong>${formatGraphNumber(node.followingCount ?? node.following ?? 0)}</strong><span>Following</span></div><div class="profile-metric"><strong>${Number(node.influence || 0).toFixed(1)}</strong><span>Influence</span></div><div class="profile-metric"><strong>${node.connections ?? '—'}</strong><span>Connections</span></div></div><div style="color:var(--text-secondary);font-size:12px;line-height:1.5">${node.bio || 'No profile summary available for this node.'}</div><div style="display:flex;gap:8px;margin-top:16px"><a class="btn btn--primary btn--sm" href="https://x.com/${encodeURIComponent(handle)}" target="_blank" rel="noopener">Open on X</a><span class="badge badge--blue" style="align-self:center">${relationshipOf(node)}</span></div>`;
+      detailsPanel.classList.add('visible');
+    }
 
     // Designed offline notice (backend migrating). Reused across sections.
     const OFFLINE_HTML = '<div class="offline-note" role="status"><span class="offline-ic">📡</span><div><strong>Backend offline.</strong> The hosted API is being migrated. Browser scripts, the CLI, and docs work without it. <a href="/docs">Read the docs →</a></div></div>';
@@ -471,6 +520,12 @@
           return;
         }
 
+        if (result.status === 'crawling') {
+          buildStatus.textContent = '⏳ Crawl running — waiting for realtime completion...';
+          buildProgressFill.style.width = '35%';
+          return;
+        }
+
         // Simulate progress
         let pct = 10;
         const ticker = setInterval(() => {
@@ -536,11 +591,21 @@
 
       const width = graphSvg.clientWidth;
       const height = graphSvg.clientHeight;
-      const nodes = data.nodes || [];
+      const allNodes = data.nodes || [];
+      const nodes = allNodes.filter(node => filterState.minInfluence <= Number(node.influence || 0) && (filterState.relationship === 'all' || relationshipOf(node) === filterState.relationship));
+      const visibleIds = new Set(nodes.map(node => node.id));
       const links = (data.links || []).map(l => ({
         source: typeof l.source === 'object' ? l.source.id : l.source,
         target: typeof l.target === 'object' ? l.target.id : l.target,
-      }));
+      })).filter(link => visibleIds.has(link.source) && visibleIds.has(link.target));
+
+      if (nodes.length === 0) {
+        emptyState.style.display = 'flex';
+        emptyState.querySelector('.empty__title').textContent = 'No nodes match these filters';
+        emptyState.querySelector('.empty__desc').textContent = 'Lower the influence threshold or reset the relationship filter to see more of this graph.';
+        graphSvg.style.display = 'none';
+        return;
+      }
 
       const svg = d3.select(graphSvg);
 
@@ -605,9 +670,7 @@
       .on('mouseout', () => {
         tooltip.classList.remove('visible');
       })
-      .on('click', (e, d) => {
-        window.open(`https://x.com/${d.id}`, '_blank');
-      });
+      .on('click', (e, d) => showDetails(d));
 
       // Simulation
       simulation = d3.forceSimulation(nodes)
@@ -636,6 +699,24 @@
       d3.select(graphSvg).selectAll('line')
         .attr('opacity', 0.05);
     });
+
+    document.getElementById('relationshipFilter').addEventListener('change', (e) => {
+      filterState.relationship = e.target.value;
+      if (currentGraph?.viz) renderGraph(currentGraph.viz);
+    });
+    document.getElementById('influenceFilter').addEventListener('input', (e) => {
+      filterState.minInfluence = Number(e.target.value);
+      document.getElementById('influenceValue').textContent = `${e.target.value}+`;
+      if (currentGraph?.viz) renderGraph(currentGraph.viz);
+    });
+    document.getElementById('clearFilters').addEventListener('click', () => {
+      filterState = { relationship: 'all', minInfluence: 0 };
+      document.getElementById('relationshipFilter').value = 'all';
+      document.getElementById('influenceFilter').value = '0';
+      document.getElementById('influenceValue').textContent = '0+';
+      if (currentGraph?.viz) renderGraph(currentGraph.viz);
+    });
+    document.getElementById('closeDetails').addEventListener('click', () => detailsPanel.classList.remove('visible'));
 
     // ── Zoom controls ──────────────────────────────────
     document.getElementById('zoomInBtn').addEventListener('click', () => {
@@ -811,6 +892,19 @@
 
     // ── Init ───────────────────────────────────────────
     refreshGraphList();
+    window.addEventListener('load', () => {
+      if (!window.io) return;
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+      const graphSocket = window.io(window.location.origin, { auth: { token, role: 'dashboard' } });
+      graphSocket.on('graph:complete', async (event) => {
+        buildProgressFill.style.width = '100%';
+        buildStatus.textContent = `✅ Graph ready — ${event.nodesCount || 0} nodes`;
+        if (event.graphId) await loadGraph(event.graphId);
+        await refreshGraphList();
+      });
+      graphSocket.on('connect_error', () => { buildStatus.textContent = 'Realtime unavailable; refresh saved graphs to check progress.'; });
+    });
   </script>
 </body>
 </html>

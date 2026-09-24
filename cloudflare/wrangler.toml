@@ -1,0 +1,22 @@
+name = "xactions-edge-gateway"
+main = "src/index.ts"
+compatibility_date = "2026-09-24"
+
+[vars]
+# Local defaults only. Production values should be set with `wrangler secret put`.
+API_ORIGIN = "https://replace-with-node-api.example.com"
+# Set to the exact Pages origin in production. Omit for local development.
+ALLOWED_ORIGIN = "http://localhost:3000"
+# Optional non-secret Supabase project URL. The Worker does not hold a service-role key.
+SUPABASE_URL = ""
+SUPABASE_ANON_KEY = ""
+
+[env.production.vars]
+# Replace these placeholders per environment; use secrets for private origins if required.
+API_ORIGIN = "https://replace-with-node-api.example.com"
+ALLOWED_ORIGIN = "https://replace-with-pages.example.com"
+SUPABASE_URL = ""
+SUPABASE_ANON_KEY = ""
+
+[observability]
+enabled = true

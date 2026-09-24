@@ -87,9 +87,12 @@ import datasetsRoutes from './routes/datasets.js';
 import notificationsRoutes from './routes/notifications.js';
 import teamsRoutes from './routes/teams.js';
 import optimizerRoutes from './routes/optimizer.js';
+import enhancedRoutes from './routes/enhanced.js';
 import { startScheduler } from './services/unfollowerScheduler.js';
 import { initializeSocketIO } from './realtime/socketHandler.js';
 import { initializeLicensing, brandingMiddleware } from './services/licensing.js';
+import { requestContext } from './middleware/requestContext.js';
+import { captureRequest } from './services/telemetry.js';
 
 // Plugin system
 import { initializePlugins, getPluginRoutes } from '../src/plugins/index.js';
@@ -120,6 +123,8 @@ const PORT = process.env.PORT || 3001;
 export function createApp({ rateLimiting = true } = {}) {
   const app = express();
   const httpServer = createServer(app);
+
+  app.use(requestContext);
 
   // Initialize Socket.io for real-time browser-to-browser communication
   const io = initializeSocketIO(httpServer);
@@ -159,18 +164,27 @@ export function createApp({ rateLimiting = true } = {}) {
     }
   }));
 
+  const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? ['https://xactions.app', process.env.FRONTEND_URL, process.env.EDGE_ORIGIN].filter(Boolean)
+    : (process.env.DEV_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:5173').split(',').map((origin) => origin.trim());
   app.use(cors({
-    origin: process.env.NODE_ENV === 'production'
-      ? ['https://xactions.app', process.env.FRONTEND_URL].filter(Boolean)
-      : (process.env.DEV_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:5173').split(','),
-    credentials: true
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error('CORS origin not allowed'));
+    },
+    credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Request-Id'],
   }));
 
   if (rateLimiting) {
     // Rate limiting
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100 // limit each IP to 100 requests per windowMs
+      max: 100, // limit each IP to 100 requests per windowMs
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      skip: (req) => req.path === '/health' || req.path === '/api/health',
     });
     app.use('/api/', limiter);
 
@@ -348,6 +362,7 @@ export function createApp({ rateLimiting = true } = {}) {
   app.use('/api/notifications', notificationsRoutes);
   app.use('/api/teams', teamsRoutes);
   app.use('/api/optimizer', optimizerRoutes);
+  app.use('/api/enhanced', enhancedRoutes);
 
   app.use('/api/automations', automationsRoutes);
   app.use('/api/streams', streamRoutes);
@@ -542,6 +557,7 @@ export function createApp({ rateLimiting = true } = {}) {
   // Error handling middleware — never expose stack traces or internal details in production
   app.use((err, req, res, next) => {
     console.error('❌ Unhandled error:', err.message);
+    captureRequest(req, 'api_error', { status: err.status || 500, error: err.message }).catch(() => {});
     if (process.env.NODE_ENV !== 'production') {
       console.error(err.stack);
     }
@@ -551,14 +567,15 @@ export function createApp({ rateLimiting = true } = {}) {
         message: status >= 500 && process.env.NODE_ENV === 'production'
           ? 'Internal server error'
           : err.message || 'Internal server error',
-        status
+        status,
+        requestId: req.id,
       }
     });
   });
 
   // 404 handler
   app.use((req, res) => {
-    res.status(404).json({ error: 'Route not found' });
+    res.status(404).json({ error: 'Route not found', requestId: req.id });
   });
 
   return { app, httpServer, io };

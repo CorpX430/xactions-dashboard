@@ -2,6 +2,14 @@
 // by nichxbt
 
 (function () {
+  if (!document.querySelector('link[data-xactions-shell]')) {
+    const shellStyles = document.createElement('link');
+    shellStyles.rel = 'stylesheet';
+    shellStyles.href = '/css/dashboard-shell.css';
+    shellStyles.dataset.xactionsShell = 'true';
+    document.head.appendChild(shellStyles);
+  }
+
   const sidebar = document.querySelector('.sidebar-left');
   if (!sidebar) return;
 
@@ -101,7 +109,7 @@
   const nav = navItems.map(item => {
     const active = isActive(item.href) ? ' active' : '';
     const ext = item.external ? ' target="_blank" rel="noopener noreferrer"' : '';
-    return `<a href="${item.href}" class="nav-item${active}" aria-label="${item.label}"${ext}>
+    return `<a href="${item.href}" class="nav-item${active}" aria-label="${item.label}"${active ? ' aria-current="page"' : ''}${ext}>
       <span class="nav-icon" aria-hidden="true">${item.icon}</span>
       <span>${item.label}</span>
     </a>`;
@@ -125,6 +133,25 @@
         </div>
         <span class="user-menu-dots">···</span>
       </a>`;
+
+  const toggle = document.createElement('button');
+  toggle.className = 'mobile-shell-toggle';
+  toggle.type = 'button';
+  toggle.setAttribute('aria-label', 'Toggle navigation');
+  toggle.textContent = '☰';
+  toggle.addEventListener('click', () => {
+    const open = sidebar.classList.toggle('is-open');
+    toggle.textContent = open ? '×' : '☰';
+    toggle.setAttribute('aria-expanded', String(open));
+  });
+  document.body.appendChild(toggle);
+  document.addEventListener('click', (event) => {
+    if (window.innerWidth <= 768 && sidebar.classList.contains('is-open') && !sidebar.contains(event.target) && event.target !== toggle) {
+      sidebar.classList.remove('is-open');
+      toggle.textContent = '☰';
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+  });
 
   // Populate user info from stored auth token
   (function loadUserInfo() {

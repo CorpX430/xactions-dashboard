@@ -159,6 +159,11 @@
       padding: 8px 16px; font-size: 12px; color: var(--text-secondary);
       pointer-events: none; z-index: 5;
     }
+    .wf-execution-status { position:absolute; left:12px; bottom:12px; z-index:8; display:none; max-width:min(420px,calc(100% - 24px)); padding:9px 13px; border:1px solid var(--border); border-radius:999px; background:rgba(22,24,28,.94); color:var(--text-secondary); font-size:12px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+    .wf-execution-status.is-visible { display:block; }
+    .wf-execution-status[data-status="running"] { color:var(--warning); border-color:rgba(255,173,31,.45); }
+    .wf-execution-status[data-status="success"] { color:var(--success); border-color:rgba(0,186,124,.45); }
+    .wf-execution-status[data-status="error"] { color:var(--error); border-color:rgba(244,33,46,.45); }
 
     /* ── Sidebar ───────────────────────────────────── */
     .app-layout {
@@ -273,11 +278,14 @@
           <button class="tbtn" id="wf-save">💾 Save</button>
           <button class="tbtn" id="wf-export">📤 Export</button>
           <button class="tbtn tbtn--primary" id="wf-run">▶ Run</button>
+          <button class="tbtn" id="wf-pause" disabled>Ⅱ Pause</button>
+          <button class="tbtn" id="wf-resume" disabled>▶ Resume</button>
           <button class="tbtn tbtn--danger" id="wf-clear">🗑 Clear</button>
         </div>
       </div>
       <canvas id="wf-canvas"></canvas>
       <div class="help-hint">Click a block type on the left to add it. Drag to move. Drag from bottom dot to top dot to connect. Press Delete to remove.</div>
+      <div id="wf-execution-status" class="wf-execution-status" role="status"></div>
     </div>
 
     <!-- Properties panel -->

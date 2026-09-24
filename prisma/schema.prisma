@@ -25,12 +25,17 @@ model User {
   twitterTokenExpiry  DateTime?
   sessionCookie       String?
   authMethod          String?
+  clerkId             String?         @unique
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   cryptoPayments      CryptoPayment[]
   operations          Operation[]
   payments            Payment[]
   subscription        Subscription?
+  graphs              SocialGraph[]
+  workflows           Workflow[]
+  workflowRuns        WorkflowRun[]
+  realtimeEvents      RealtimeEvent[]
 
   @@index([email])
   @@index([username])
@@ -216,4 +221,112 @@ model UnfollowerSchedule {
   updatedAt  DateTime  @updatedAt
 
   @@index([active, nextRunAt])
+}
+
+model SocialGraph {
+  id             String            @id @default(cuid())
+  userId         String
+  name           String
+  sourceUsername String?
+  status         String            @default("draft")
+  filters        String?
+  influenceModel String            @default("pagerank")
+  nodeCount      Int               @default(0)
+  edgeCount      Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodes          SocialGraphNode[]
+  edges          SocialGraphEdge[]
+
+  @@index([userId, updatedAt])
+  @@index([userId, status])
+}
+
+model SocialGraphNode {
+  id          String      @id @default(cuid())
+  graphId     String
+  externalId  String
+  username    String
+  displayName String?
+  avatarUrl   String?
+  clusterId   String?
+  influence   Float       @default(0)
+  followers   Int         @default(0)
+  following   Int         @default(0)
+  metadata    String?
+  graph       SocialGraph @relation(fields: [graphId], references: [id], onDelete: Cascade)
+
+  @@unique([graphId, externalId])
+  @@index([graphId, influence])
+  @@index([graphId, clusterId])
+}
+
+model SocialGraphEdge {
+  id       String      @id @default(cuid())
+  graphId  String
+  sourceId String
+  targetId String
+  relation String      @default("follows")
+  weight   Float       @default(1)
+  metadata String?
+  graph    SocialGraph @relation(fields: [graphId], references: [id], onDelete: Cascade)
+
+  @@unique([graphId, sourceId, targetId, relation])
+  @@index([graphId, sourceId])
+  @@index([graphId, targetId])
+}
+
+model Workflow {
+  id          String        @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  enabled     Boolean       @default(false)
+  trigger     String
+  definition  String
+  version     Int           @default(1)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs        WorkflowRun[]
+
+  @@index([userId, updatedAt])
+  @@index([userId, enabled])
+}
+
+model WorkflowRun {
+  id          String          @id @default(cuid())
+  workflowId  String
+  userId      String
+  status      String          @default("queued")
+  trigger     String
+  input       String?
+  output      String?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime        @default(now())
+  workflow    Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events      RealtimeEvent[]
+
+  @@index([workflowId, createdAt])
+  @@index([userId, status, createdAt])
+}
+
+model RealtimeEvent {
+  id            String       @id @default(cuid())
+  userId        String
+  workflowRunId String?
+  topic         String
+  eventType     String
+  payload       String
+  createdAt     DateTime     @default(now())
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflowRun   WorkflowRun? @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([topic, createdAt])
+  @@index([workflowRunId, createdAt])
 }

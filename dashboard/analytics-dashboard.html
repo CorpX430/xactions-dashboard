@@ -118,7 +118,7 @@
     let charts = {};
     let offlineWarned = false;
 
-    const OFFLINE_HTML = '<div class="offline-note" role="status"><span class="offline-ic">📡</span><div><strong>Backend offline.</strong> The hosted API is being migrated, so the figures below are an illustrative sample. Browser scripts, the CLI, and docs work without it. <a href="/docs">Read the docs →</a></div></div>';
+    const OFFLINE_HTML = '<div class="offline-note" role="alert"><span class="offline-ic">📡</span><div><strong>Analytics unavailable.</strong> Connect the API and retry; no synthetic metrics are shown. <a href="/docs">Read the docs →</a></div></div>';
     function showOfflineNote() {
       if (!offlineWarned) { console.warn('Analytics API offline. Backend is being migrated; showing sample data.'); offlineWarned = true; }
       const main = document.querySelector('.main');
@@ -132,6 +132,11 @@
     function clearOfflineNote() {
       const n = document.getElementById('analyticsOffline');
       if (n) n.remove();
+    }
+    function escapeHtml(value) {
+      const div = document.createElement('div');
+      div.textContent = String(value ?? '');
+      return div.innerHTML;
     }
 
     const chartDefaults = {
@@ -178,7 +183,7 @@
         type: 'doughnut',
         data: {
           labels: ['Original', 'Reply', 'Retweet', 'Quote'],
-          datasets: [{ data: [45, 25, 20, 10], backgroundColor: ['#1d9bf0', '#00c853', '#ffb800', '#ff4444'] }],
+          datasets: [{ data: [0, 0, 0, 0], backgroundColor: ['#1d9bf0', '#00c853', '#ffb800', '#ff4444'] }],
         },
         options: { responsive: true, plugins: { legend: { labels: { color: '#888' } } } },
       });
@@ -199,7 +204,7 @@
 
       for (let day = 0; day < 7; day++) {
         for (let hour = 0; hour < 24; hour++) {
-          const val = data ? (data[day]?.[hour] || 0) : Math.random() * 100;
+          const val = data ? (data[day]?.[hour] || 0) : 0;
           const intensity = val / maxVal;
           const bg = `rgba(29, 155, 240, ${0.05 + intensity * 0.9})`;
           html += `<div class="heatmap-cell" style="background:${bg}" data-tooltip="${days[day]} ${hour}:00 — ${Math.round(val)} engagements"></div>`;
@@ -227,71 +232,10 @@
           updateDashboard(data);
           return;
         }
-      } catch { /* API not available, fall back to sample data below */ }
-
-      // Backend offline: surface a notice, then render an illustrative sample.
-      showOfflineNote();
-      loadDemoData(username, days);
-    }
-
-    function loadDemoData(username, days) {
-      const labels = [];
-      const followers = [];
-      const likes = [];
-      const replies = [];
-      const retweets = [];
-
-      let base = 10000 + Math.floor(Math.random() * 50000);
-      for (let i = days; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        labels.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-        base += Math.floor(Math.random() * 100 - 30);
-        followers.push(base);
-        likes.push(Math.floor(Math.random() * 500 + 100));
-        replies.push(Math.floor(Math.random() * 100 + 10));
-        retweets.push(Math.floor(Math.random() * 200 + 30));
+      } catch (error) {
+        showOfflineNote();
+        document.getElementById('top-tweets-list').innerHTML = `<div class="loading" role="alert">Unable to load analytics: ${escapeHtml(error.message || 'API unavailable')}</div>`;
       }
-
-      // Update cards
-      const latest = followers[followers.length - 1];
-      const earlier = followers[0];
-      const change = latest - earlier;
-      const pct = ((change / earlier) * 100).toFixed(1);
-      document.getElementById('card-followers').textContent = latest.toLocaleString();
-      document.getElementById('card-followers-change').textContent = `${change >= 0 ? '+' : ''}${change.toLocaleString()} (${pct}%)`;
-      document.getElementById('card-followers-change').className = `change ${change >= 0 ? 'up' : 'down'}`;
-
-      document.getElementById('card-following').textContent = Math.floor(latest * 0.3).toLocaleString();
-      document.getElementById('card-tweets').textContent = Math.floor(latest * 0.5).toLocaleString();
-      document.getElementById('card-engagement').textContent = (Math.random() * 5 + 1).toFixed(1) + '%';
-      document.getElementById('card-growth').textContent = `${pct}%`;
-      document.getElementById('card-growth-change').textContent = `per ${days} days`;
-      document.getElementById('card-growth-change').className = `change ${change >= 0 ? 'up' : 'down'}`;
-
-      // Update charts
-      charts.followers.data.labels = labels;
-      charts.followers.data.datasets[0].data = followers;
-      charts.followers.update();
-
-      charts.engagement.data.labels = labels;
-      charts.engagement.data.datasets[0].data = likes;
-      charts.engagement.data.datasets[1].data = replies;
-      charts.engagement.data.datasets[2].data = retweets;
-      charts.engagement.update();
-
-      // Bar chart — last 10 days
-      const lastLabels = labels.slice(-10);
-      charts.likesRts.data.labels = lastLabels;
-      charts.likesRts.data.datasets[0].data = likes.slice(-10);
-      charts.likesRts.data.datasets[1].data = retweets.slice(-10);
-      charts.likesRts.update();
-
-      // Heatmap
-      renderHeatmap(null);
-
-      // Top tweets
-      renderTopTweets(username);
     }
 
     function updateDashboard(data) {

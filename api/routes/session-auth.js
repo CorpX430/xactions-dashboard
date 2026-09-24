@@ -5,6 +5,7 @@ import { body, validationResult } from 'express-validator';
 import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth.js';
 import browserAutomation from '../services/browserAutomation.js';
+import { captureEvent } from '../services/telemetry.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -99,6 +100,7 @@ router.post('/save-session',
         message: 'Session saved successfully',
         authMethod: 'session'
       });
+      captureEvent('x_session_connected', { authMethod: 'session' }, req.user.clerkId || req.user.id);
     } catch (error) {
       console.error('❌ Save session error:', error.message);
       res.status(500).json({ error: 'Failed to save session' });
@@ -120,6 +122,7 @@ router.delete('/remove-session',
       });
 
       res.json({ message: 'Session removed successfully' });
+      captureEvent('x_session_disconnected', {}, req.user.clerkId || req.user.id);
     } catch (error) {
       console.error('❌ Remove session error:', error.message);
       res.status(500).json({ error: 'Failed to remove session' });

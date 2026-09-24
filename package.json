@@ -40,10 +40,14 @@
     "vercel-build": "prisma generate",
     "dev": "NODE_ENV=development nodemon api/server.js",
     "start": "NODE_ENV=production node api/server.js",
+    "healthcheck": "node scripts/healthcheck.mjs",
+    "deploy:cloudflare:stack": "bash scripts/deploy-cloudflare-stack.sh",
     "cli": "node src/cli/index.js",
     "mcp": "node src/mcp/server.js",
     "worker": "node api/services/jobQueue.js",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
     "db:studio": "prisma studio",
@@ -99,6 +103,7 @@
     "check:x402": "node scripts/check-x402-routes.mjs"
   },
   "dependencies": {
+    "@clerk/backend": "^3.19.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@prisma/client": "^5.7.1",
     "axios": "^1.15.2",

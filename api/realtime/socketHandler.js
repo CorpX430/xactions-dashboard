@@ -1,16 +1,14 @@
 // Copyright (c) 2024-2026 nich (@nichxbt). Licensed under the Apache License, Version 2.0.
 import { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import { prisma, resolveUserFromToken } from '../services/identity.js';
 
 // Payment routes archived - XActions is now 100% free and open-source
 // All credit checks have been removed - unlimited operations for all users
 
-const prisma = new PrismaClient();
-
 // Store active sessions
 const activeSessions = new Map(); // odessId -> { odess, dashboard, user, status }
 const adminSockets = new Set(); // Admin sockets watching all sessions
+let ioInstance = null;
 
 export function initializeSocketIO(httpServer) {
   const io = new Server(httpServer, {
@@ -22,6 +20,7 @@ export function initializeSocketIO(httpServer) {
       credentials: true
     }
   });
+  ioInstance = io;
 
   // Middleware to authenticate socket connections
   io.use(async (socket, next) => {
@@ -34,10 +33,7 @@ export function initializeSocketIO(httpServer) {
       }
 
       if (token) {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await prisma.user.findUnique({
-          where: { id: decoded.userId }
-        });
+        const user = await resolveUserFromToken(token);
 
         if (!user) {
           return next(new Error('User not found'));
@@ -90,6 +86,14 @@ export function initializeSocketIO(httpServer) {
       socket.leave(`job:${jobId}`);
     });
 
+    socket.on('workflow:join', (workflowId) => {
+      if (workflowId) socket.join(`workflow:${workflowId}`);
+    });
+
+    socket.on('workflow:leave', (workflowId) => {
+      if (workflowId) socket.leave(`workflow:${workflowId}`);
+    });
+
     socket.on('disconnect', () => {
       console.log(`🔌 Socket disconnected: ${socket.id}`);
       handleDisconnection(io, socket);
@@ -100,6 +104,10 @@ export function initializeSocketIO(httpServer) {
   initializeStreamIO(io);
 
   return io;
+}
+
+export function emitWorkflowProgress(workflowId, payload) {
+  if (ioInstance && workflowId) ioInstance.to(`workflow:${workflowId}`).emit('workflow:progress', payload);
 }
 
 /**

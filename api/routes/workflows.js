@@ -21,6 +21,8 @@
 
 import express from 'express';
 import { authMiddleware } from '../middleware/auth.js';
+import { captureEvent } from '../services/telemetry.js';
+import { emitWorkflowProgress } from '../realtime/socketHandler.js';
 
 const router = express.Router();
 
@@ -75,6 +77,7 @@ router.post('/', async (req, res) => {
     });
 
     res.status(201).json(workflow);
+    captureEvent('workflow_created', { workflowId: workflow.id, steps: steps.length }, req.user.clerkId || req.user.id);
   } catch (error) {
     console.error('❌ Create workflow error:', error.message);
     res.status(500).json({ error: error.message });
@@ -141,6 +144,28 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+router.post('/:id/pause', async (req, res) => {
+  try {
+    const workflows = await getWorkflows();
+    const updated = await workflows.update(req.params.id, { enabled: false });
+    emitWorkflowProgress(updated.id, { type: 'paused', workflowId: updated.id });
+    res.json({ success: true, workflow: updated, message: 'Workflow triggers paused' });
+  } catch (error) {
+    res.status(error.message.includes('not found') ? 404 : 500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/resume', async (req, res) => {
+  try {
+    const workflows = await getWorkflows();
+    const updated = await workflows.update(req.params.id, { enabled: true });
+    emitWorkflowProgress(updated.id, { type: 'resumed', workflowId: updated.id });
+    res.json({ success: true, workflow: updated, message: 'Workflow triggers resumed' });
+  } catch (error) {
+    res.status(error.message.includes('not found') ? 404 : 500).json({ error: error.message });
+  }
+});
+
 /**
  * DELETE /api/workflows/:id — Delete a workflow
  */
@@ -183,12 +208,13 @@ router.post('/:id/run', async (req, res) => {
       authToken: authToken || req.user?.sessionCookie,
       userId: req.user?.id || 'anonymous',
       onProgress: (event) => {
-        // Could emit via Socket.IO here
+        emitWorkflowProgress(workflow.id, event);
         if (event.type === 'step_error') {
           console.error(`⚠️ Workflow step error: ${event.error}`);
         }
       },
     });
+    captureEvent('workflow_run_started', { workflowId: workflow.id, trigger: 'manual' }, req.user.clerkId || req.user.id);
 
     // If the workflow has few steps, wait for it
     if (workflow.steps?.length <= 3) {

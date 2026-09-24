@@ -17,18 +17,23 @@
       label: 'Trigger',
       color: '#ffad1f',
       items: [
+        { type: 'manual', label: 'Manual Run', icon: '▶', fields: [] },
         { type: 'schedule', label: 'Schedule (Cron)', icon: '⏰', fields: [{ key: 'cron', label: 'Cron Expression', placeholder: '*/30 * * * *' }] },
-        { type: 'event', label: 'Event', icon: '⚡', fields: [{ key: 'event', label: 'Event Name', placeholder: 'new_tweet' }] }
+        { type: 'webhook', label: 'Webhook', icon: '↗', fields: [{ key: 'webhookId', label: 'Webhook ID', placeholder: 'incoming-lead' }] },
+        { type: 'event', label: 'Stream Event', icon: '⚡', fields: [{ key: 'event', label: 'Event Name', placeholder: 'new_tweet' }] }
       ]
     },
     action: {
       label: 'Action',
       color: '#1d9bf0',
       items: [
-        { type: 'scrape', label: 'Scrape', icon: '🔍', fields: [{ key: 'target', label: 'Target', placeholder: '@username' }, { key: 'dataType', label: 'Data Type', placeholder: 'profile' }] },
+        { type: 'scrapeProfile', label: 'Scrape Profile', icon: '🔍', fields: [{ key: 'target', label: 'Target', placeholder: '@username' }] },
         { type: 'follow', label: 'Follow', icon: '👤', fields: [{ key: 'target', label: 'Target', placeholder: '@username' }] },
-        { type: 'like', label: 'Like', icon: '❤️', fields: [{ key: 'tweetUrl', label: 'Tweet URL', placeholder: 'https://x.com/...' }] },
-        { type: 'post', label: 'Post Tweet', icon: '✍️', fields: [{ key: 'text', label: 'Tweet Text', placeholder: 'Hello world' }] },
+        { type: 'unfollow', label: 'Unfollow', icon: '👋', fields: [{ key: 'target', label: 'Target', placeholder: '@username' }] },
+        { type: 'like', label: 'Like', icon: '❤️', fields: [{ key: 'url', label: 'Tweet URL', placeholder: 'https://x.com/...' }] },
+        { type: 'reply', label: 'Reply', icon: '💬', fields: [{ key: 'url', label: 'Tweet URL', placeholder: 'https://x.com/...' }, { key: 'text', label: 'Reply Text', placeholder: 'Thanks for sharing!' }] },
+        { type: 'searchTweets', label: 'Search Sweep', icon: '🛰️', fields: [{ key: 'query', label: 'Search Query', placeholder: 'from:username keyword' }, { key: 'limit', label: 'Result Limit', placeholder: '25' }] },
+        { type: 'postTweet', label: 'Post Tweet', icon: '✍️', fields: [{ key: 'text', label: 'Tweet Text', placeholder: 'Hello world' }] },
         { type: 'summarize', label: 'AI Summarize', icon: '🤖', fields: [{ key: 'input', label: 'Input Variable', placeholder: '{{profile.bio}}' }, { key: 'provider', label: 'Provider', placeholder: 'openrouter' }] }
       ]
     },
@@ -36,7 +41,7 @@
       label: 'Condition',
       color: '#00ba7c',
       items: [
-        { type: 'if', label: 'If / Else', icon: '🔀', fields: [{ key: 'expression', label: 'Condition', placeholder: 'profile.followers > 1000' }] },
+        { type: 'if', label: 'If / Else', icon: '🔀', fields: [{ key: 'expression', label: 'Condition', placeholder: 'profile.followers > 1000' }, { key: 'onFail', label: 'On false', placeholder: 'stop or skip' }] },
         { type: 'filter', label: 'Filter', icon: '🔎', fields: [{ key: 'expression', label: 'Filter Expression', placeholder: 'tweet.text.includes("keyword")' }] }
       ]
     }
@@ -52,6 +57,7 @@
   let connecting = null; // { fromId }
   let canvasOffset = { x: 0, y: 0 };
   let workflowName = 'Untitled Workflow';
+  let workflowId = null;
 
   // ── DOM ───────────────────────────────────────────────
   const canvas = document.getElementById('wf-canvas');
@@ -63,9 +69,12 @@
   const saveBtn = document.getElementById('wf-save');
   const loadBtn = document.getElementById('wf-load');
   const runBtn = document.getElementById('wf-run');
+  const pauseBtn = document.getElementById('wf-pause');
+  const resumeBtn = document.getElementById('wf-resume');
   const clearBtn = document.getElementById('wf-clear');
   const exportBtn = document.getElementById('wf-export');
   const palette = document.getElementById('block-palette');
+  let workflowSocket = null;
 
   // ── Init ──────────────────────────────────────────────
   function init() {
@@ -395,8 +404,19 @@
 
   // ── Serialization ─────────────────────────────────────
   function toJSON() {
+    const ordered = [...blocks].sort((a, b) => a.y - b.y || a.x - b.x);
+    const triggerBlock = ordered.find(b => b.category === 'trigger');
+    const trigger = triggerBlock ? { type: triggerBlock.type, ...Object.fromEntries(triggerBlock.fields.map(f => [f.key, f.value]).filter(([, value]) => value)) } : { type: 'manual' };
+    const steps = ordered.filter(b => b.category !== 'trigger').map(block => {
+      const config = Object.fromEntries(block.fields.map(f => [f.key, f.value]).filter(([, value]) => value));
+      if (block.category === 'condition') return { condition: config.expression || '', onFail: config.onFail || 'stop' };
+      return { action: block.type, ...config };
+    });
     return {
+      ...(workflowId ? { id: workflowId } : {}),
       name: workflowNameInput.value || workflowName,
+      trigger,
+      steps,
       blocks: blocks.map(b => ({
         id: b.id,
         category: b.category,
@@ -414,9 +434,14 @@
     blocks = [];
     connections = [];
     nextId = 1;
+    workflowId = json.id || null;
     workflowNameInput.value = json.name || 'Untitled';
 
-    for (const b of json.blocks) {
+    const sourceBlocks = Array.isArray(json.blocks) && json.blocks.length ? json.blocks : [
+      ...(json.trigger ? [{ id: 1, category: 'trigger', type: json.trigger.type || 'manual', config: json.trigger, x: 100, y: 80 }] : []),
+      ...(json.steps || []).map((step, index) => ({ id: index + 2, category: step.condition ? 'condition' : 'action', type: step.action || 'if', config: step, x: 100, y: 180 + index * 100 }))
+    ];
+    for (const b of sourceBlocks) {
       const catDef = BLOCK_TYPES[b.category];
       if (!catDef) continue;
       const itemDef = catDef.items.find(i => i.type === b.type) || catDef.items[0];
@@ -437,7 +462,7 @@
       if (b.id >= nextId) nextId = b.id + 1;
     }
 
-    connections = (json.connections || []).map(c => ({ from: c.from, to: c.to }));
+    connections = (json.connections || sourceBlocks.slice(1).map((b, index) => ({ from: sourceBlocks[index].id, to: b.id }))).map(c => ({ from: c.from, to: c.to }));
     selected = null;
     hideProps();
     render();
@@ -447,11 +472,12 @@
   async function saveWorkflow() {
     const json = toJSON();
     try {
-      // Try saving to API first
-      await apiRequest('/workflows', {
-        method: 'POST',
+      const response = await apiRequest(workflowId ? `/workflows/${workflowId}` : '/workflows', {
+        method: workflowId ? 'PUT' : 'POST',
         body: JSON.stringify(json)
       });
+      workflowId = response.id || response.workflow?.id || workflowId;
+      if (workflowSocket && workflowId) workflowSocket.emit('workflow:join', workflowId);
       showToast('Workflow saved to server', 'success');
     } catch {
       // Fallback: save to localStorage
@@ -496,14 +522,54 @@
       return;
     }
     try {
-      await apiRequest('/workflows/run', {
+      if (!workflowId) {
+        const created = await apiRequest('/workflows', { method: 'POST', body: JSON.stringify(json) });
+        workflowId = created.id || created.workflow?.id;
+      }
+      const result = await apiRequest(`/workflows/${workflowId}/run`, {
         method: 'POST',
-        body: JSON.stringify(json)
+        body: JSON.stringify({ context: {} })
       });
-      showToast('Workflow execution started', 'success');
+      if (workflowSocket && workflowId) workflowSocket.emit('workflow:join', workflowId);
+      pauseBtn.disabled = !workflowId;
+      resumeBtn.disabled = true;
+      showExecutionStatus(`Running ${json.name}`, 'running');
+      if (result.status === 'completed') showExecutionStatus('Workflow completed', 'success');
+      if (result.status === 'failed') showExecutionStatus(result.error || 'Workflow failed', 'error');
+      showToast(result.message || 'Workflow execution started', 'success');
     } catch (err) {
       showToast('Run failed: ' + err.message, 'error');
     }
+  }
+
+  function showExecutionStatus(message, status) {
+    const el = document.getElementById('wf-execution-status');
+    if (!el) return;
+    el.dataset.status = status;
+    el.textContent = message;
+    el.classList.add('is-visible');
+  }
+
+  async function pauseWorkflow() {
+    if (!workflowId) return showToast('Save the workflow before pausing triggers', 'error');
+    try {
+      await apiRequest(`/workflows/${workflowId}/pause`, { method: 'POST' });
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = false;
+      showExecutionStatus('Workflow triggers paused', 'success');
+      showToast('Workflow triggers paused', 'success');
+    } catch (error) { showToast(`Pause failed: ${error.message}`, 'error'); }
+  }
+
+  async function resumeWorkflow() {
+    if (!workflowId) return;
+    try {
+      await apiRequest(`/workflows/${workflowId}/resume`, { method: 'POST' });
+      pauseBtn.disabled = false;
+      resumeBtn.disabled = true;
+      showExecutionStatus('Workflow triggers resumed', 'success');
+      showToast('Workflow triggers resumed', 'success');
+    } catch (error) { showToast(`Resume failed: ${error.message}`, 'error'); }
   }
 
   function clearCanvas() {
@@ -538,6 +604,8 @@
     saveBtn.addEventListener('click', saveWorkflow);
     loadBtn.addEventListener('click', loadWorkflow);
     runBtn.addEventListener('click', runWorkflow);
+    pauseBtn.addEventListener('click', pauseWorkflow);
+    resumeBtn.addEventListener('click', resumeWorkflow);
     clearBtn.addEventListener('click', clearCanvas);
     exportBtn.addEventListener('click', exportJSON);
 
@@ -566,6 +634,16 @@
         reader.readAsText(file);
       }
     });
+
+    if (window.io) {
+      const token = localStorage.getItem('authToken');
+      workflowSocket = window.io(CONFIG.WS_URL, { auth: { token, role: 'dashboard' }, autoConnect: Boolean(token) });
+      workflowSocket.on('workflow:progress', (event) => {
+        const labels = { start: 'Workflow started', step_start: `Running step ${Number(event.step) + 1}`, step_complete: `Completed ${event.name || 'step'}`, condition_passed: 'Condition passed', condition_failed: 'Condition stopped the run', complete: 'Workflow completed', failed: event.error || 'Workflow failed', paused: 'Workflow triggers paused', resumed: 'Workflow triggers resumed' };
+        showExecutionStatus(labels[event.type] || 'Workflow progress received', event.type === 'failed' ? 'error' : event.type === 'complete' ? 'success' : 'running');
+        if (event.type === 'complete' || event.type === 'failed') { pauseBtn.disabled = false; resumeBtn.disabled = true; }
+      });
+    }
   }
 
   // ── Boot ──────────────────────────────────────────────

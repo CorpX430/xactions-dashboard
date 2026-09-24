@@ -17,6 +17,7 @@
 
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { captureEvent } from '../services/telemetry.js';
 
 const router = express.Router();
 
@@ -72,6 +73,7 @@ router.post('/build', async (req, res) => {
 
       buildPromise.then((result) => {
         console.log(`✅ Graph build complete: @${username} — ${result.nodes?.length || 0} nodes`);
+        captureEvent('graph_build_completed', { username, nodes: result.nodes?.length || 0 }, req.user.clerkId || req.user.id);
         // Emit Socket.IO event if available
         const io = req.app.get('io');
         if (io) {
@@ -79,7 +81,10 @@ router.post('/build', async (req, res) => {
         }
       }).catch((err) => {
         console.error(`❌ Graph build failed for @${username}: ${err.message}`);
+        captureEvent('graph_build_failed', { username, error: err.message }, req.user.clerkId || req.user.id);
       });
+
+      captureEvent('graph_build_started', { username, depth, maxNodes, async: true }, req.user.clerkId || req.user.id);
 
       return res.status(202).json({
         message: 'Graph build started — this may take several minutes for large networks',
@@ -100,6 +105,7 @@ router.post('/build', async (req, res) => {
     });
 
     res.status(201).json(result);
+    captureEvent('graph_build_completed', { username, nodes: result.nodes?.length || 0, async: false }, req.user.clerkId || req.user.id);
   } catch (error) {
     console.error('❌ Graph build error:', error.message);
     res.status(500).json({ error: error.message });
