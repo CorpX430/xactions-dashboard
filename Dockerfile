@@ -14,7 +14,7 @@ COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
 
 # Install production dependencies only
-RUN npm ci --omit=dev && npx prisma generate
+RUN npm ci --omit=dev --legacy-peer-deps && npx prisma generate
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Stage 2: Production runtime
