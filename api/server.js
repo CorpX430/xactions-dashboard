@@ -459,6 +459,13 @@ export function createApp({ rateLimiting = true } = {}) {
     res.sendFile(path.join(__dirname, '../dashboard/login.html'));
   });
 
+  // Keep the sign-in URL stable across the command center and the official
+  // dashboard. These aliases prevent a bookmarked /auth or /sign-in URL from
+  // falling through to the JSON 404 handler on the API host.
+  app.get(['/auth', '/sign-in'], (req, res) => {
+    res.redirect(302, '/login');
+  });
+
   app.get('/run', (req, res) => {
     res.sendFile(path.join(__dirname, '../dashboard/run.html'));
   });
